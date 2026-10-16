@@ -1,0 +1,40 @@
+// components/admin/PageHeader/PageHeader.module.scss
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+.wrapper {
+  margin-bottom: 28px;
+}
+
+.goldLine {
+  height: 1px;
+  background: linear-gradient(90deg, $gold, transparent);
+  margin-bottom: 20px;
+  opacity: 0.4;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.title {
+  font-family: $font-mincho;
+  font-size: 22px;
+  font-weight: 600;
+  color: $charcoal;
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: $stone;
+  font-family: $font-serif-jp;
+}
+
+.action {
+  flex-shrink: 0;
+  margin-top: 4px;
+}

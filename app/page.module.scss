@@ -1,0 +1,80 @@
+// app/page.module.scss
+@use '../styles/variables' as *;
+
+.top {
+  height: 100vh;
+  width: 100vw;
+  max-width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  box-sizing: border-box;
+  color: #4C423B;
+  position: relative;
+  overflow: hidden;
+
+  .bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+
+    >video,
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+    }
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.15);
+    }
+  }
+
+  .con {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+  }
+
+  .textbox {
+    text-align: center;
+    position: relative;
+
+    >p {
+      font-size: 24px;
+      letter-spacing: .15em;
+      color: #fff;
+      font-family: $font-mincho;
+    }
+
+    >h1 {
+      font-size: 60px;
+      color: #fff;
+      text-transform: uppercase;
+      font-family: $font-bellefair;
+      font-weight: 400;
+      font-style: normal;
+      letter-spacing: .1em;
+      padding: 20px 0 0;
+    }
+  }
+
+
+  @media screen and (max-width: $bp-md) {
+    .textbox>p {
+      font-size: 16px;
+    }
+
+    .textbox>h1 {
+      font-size: 38px;
+    }
+  }
+}

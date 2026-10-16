@@ -1,0 +1,441 @@
+// app/admin/knowledge-design/page.module.scss
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+.page {
+  padding: 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.stateMsg {
+  padding: 40px; text-align: center;
+  font-family: $font-serif-jp; font-size: 13px; color: $stone;
+
+  a {
+    color: $gold-dark; text-decoration: underline;
+    &:hover { color: $charcoal; }
+  }
+}
+
+// ── 進捗サマリー ──────────────────────────────
+.statRow {
+  display: flex; gap: 12px; flex-wrap: wrap;
+  padding: 0;
+  margin-bottom: 20px;
+}
+.stat {
+  @include card; padding: 14px 18px; flex: 1; min-width: 180px;
+  display: flex; flex-direction: column; gap: 2px;
+  > strong {
+    font-size: 22px; color: $charcoal; font-family: $font-cormorant; letter-spacing: .02em;
+  }
+}
+.statLabel { font-size: 11px; color: $stone; font-family: $font-serif-jp; letter-spacing: .08em; }
+.statNote  { font-size: 10px; color: $stone-light; font-family: $font-serif-jp; }
+
+// ── タブ ──────────────────────────────────────
+.tabs {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  padding: 0;
+  border-bottom: 1px solid rgba($stone, .18);
+  margin-bottom: 20px;
+}
+.tab {
+  padding: 9px 16px; background: none; border: none; cursor: pointer;
+  font-family: $font-serif-jp; font-size: 12px; color: $stone;
+  border-bottom: 2px solid transparent; transition: color .2s, border-color .2s;
+  &:hover { color: $charcoal; }
+  @include focus-ring;
+}
+.tabActive { color: $charcoal; border-bottom-color: $gold; font-weight: 600; }
+
+.panel { padding: 0; }
+
+// ── 取込 ──────────────────────────────────────
+.currentBox {
+  @include card; padding: 16px 20px; margin-bottom: 20px;
+}
+.currentTitle { font-size: 13px; font-weight: 600; color: $charcoal; font-family: $font-serif-jp; }
+.currentMeta  { font-size: 11px; color: $stone; font-family: $font-serif-jp; margin-top: 2px; }
+.hardTitle {
+  margin-top: 14px; font-size: 11px; letter-spacing: .08em;
+  color: $gold-dark; font-family: $font-serif-jp; font-weight: 600;
+}
+.hardList {
+  margin: 6px 0 0; padding-left: 18px;
+  > li {
+    font-size: 12px; line-height: 1.8; color: $charcoal-light;
+    font-family: $font-serif-jp; margin-bottom: 4px;
+  }
+}
+
+.uploadRow { display: flex; gap: 12px; flex-wrap: wrap; }
+.upload {
+  @include card; padding: 18px 20px; flex: 1; min-width: 240px;
+  display: flex; flex-direction: column; gap: 4px; cursor: pointer;
+  border-style: dashed;
+  &:hover { border-color: rgba($gold, .5); }
+  > input { margin-top: 8px; font-size: 11px; font-family: $font-serif-jp; }
+}
+.uploadLabel { font-size: 13px; font-weight: 600; color: $charcoal; font-family: $font-serif-jp; }
+.uploadHint  { font-size: 11px; color: $stone; font-family: $font-mono; }
+.fileName    { margin-top: 6px; font-size: 11px; color: $gold-dark; font-family: $font-serif-jp; }
+
+.note {
+  margin: 14px 0; font-size: 11px; line-height: 1.8;
+  color: $stone; font-family: $font-serif-jp;
+}
+
+.errorBox, .warnBox, .okBox {
+  margin-top: 16px; padding: 14px 16px; border-radius: $radius-md;
+  font-size: 12px; font-family: $font-serif-jp; line-height: 1.8;
+  > ul { margin: 6px 0 0; padding-left: 18px; }
+}
+.errorBox { background: $red-bg; border: 1px solid $red-border; color: $red-error; }
+.warnBox  { background: rgba($gold, .07); border: 1px solid rgba($gold, .3); color: $gold-dark; }
+.okBox    { background: rgba($green-status, .1); border: 1px solid rgba($green-status, .35); color: #2f7d4f; }
+.boxTitle { font-weight: 600; margin: 0; }
+
+// ── 絞り込み ──────────────────────────────────
+.filterRow {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.filterGroup { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  padding: 6px 14px; border-radius: $radius-full; cursor: pointer;
+  border: 1px solid rgba($stone, .35); background: $white;
+  font-size: 11px; color: $stone; font-family: $font-serif-jp;
+  transition: all .2s;
+  &:hover { border-color: $gold; color: $charcoal; }
+  @include focus-ring;
+}
+.chipActive { background: $charcoal; border-color: $charcoal; color: $white; }
+
+.select, .search {
+  padding: 7px 12px; border: 1px solid rgba($stone, .35);
+  border-radius: $radius-md; background: $white;
+  font-size: 12px; color: $charcoal; font-family: $font-serif-jp;
+  @include focus-ring;
+}
+.search { min-width: 200px; }
+
+// ── カード ────────────────────────────────────
+.list { display: flex; flex-direction: column; gap: 8px; }
+
+.card { @include card; overflow: hidden; }
+.cardDone { border-color: rgba($green-status, .4); }
+
+.cardHead {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px; background: none; border: none; cursor: pointer;
+  text-align: left;
+  &:hover { background: rgba($cream-dark, .5); }
+  @include focus-ring;
+}
+.no   { font-size: 11px; color: $stone-light; font-family: $font-mono; }
+.code {
+  font-size: 11px; color: $gold-dark; font-family: $font-mono;
+  letter-spacing: .05em; flex-shrink: 0;
+}
+.cardTitle {
+  flex: 1; font-size: 13px; color: $charcoal;
+  font-family: $font-serif-jp; @include truncate;
+}
+.tags { display: flex; gap: 5px; flex-shrink: 0; flex-wrap: wrap; }
+
+.tag, .tagWarn, .tagDone, .tagPending {
+  padding: 3px 9px; border-radius: $radius-full;
+  font-size: 10px; font-family: $font-serif-jp; white-space: nowrap;
+}
+.tag        { background: rgba($stone, .12); color: $charcoal-light; }
+.tagWarn    { background: rgba($gold, .18); color: $gold-dark; }
+.tagDone    { background: rgba($green-status, .18); color: #2f7d4f; }
+.tagPending { background: rgba($stone, .12); color: $stone; }
+
+.cardBody {
+  padding: 4px 18px 18px; border-top: 1px solid rgba($stone, .12);
+}
+.sub {
+  margin: 12px 0 0; font-size: 11px; color: $stone; font-family: $font-serif-jp;
+}
+.fieldLabel {
+  margin: 16px 0 6px; font-size: 11px; letter-spacing: .08em;
+  color: $charcoal; font-family: $font-serif-jp; font-weight: 600;
+}
+.reqList {
+  margin: 0; padding-left: 18px;
+  > li {
+    font-size: 12px; line-height: 1.9; color: $charcoal-light; font-family: $font-serif-jp;
+  }
+}
+
+.pitfall {
+  margin-top: 14px; padding: 12px 14px; border-radius: $radius-md;
+  background: rgba($gold, .07); border: 1px solid rgba($gold, .28);
+  > p { margin: 4px 0 0; font-size: 12px; line-height: 1.8; color: $charcoal-light; font-family: $font-serif-jp; }
+}
+.pitfallLabel {
+  font-size: 10px; letter-spacing: .1em; color: $gold-dark;
+  font-family: $font-serif-jp; font-weight: 600;
+}
+
+.blockNote {
+  margin: 12px 0 0; padding: 10px 12px; border-radius: $radius-md;
+  background: rgba($navy, .04); border: 1px solid rgba($navy, .15);
+  font-size: 11px; line-height: 1.8; color: $navy; font-family: $font-serif-jp;
+}
+
+.textarea {
+  width: 100%; padding: 10px 12px; resize: vertical;
+  border: 1px solid rgba($stone, .35); border-radius: $radius-md;
+  font-size: 12px; line-height: 1.8; color: $charcoal;
+  font-family: $font-serif-jp; background: $white;
+  @include focus-ring;
+}
+
+.err { margin-top: 8px; font-size: 11px; color: $red-error; font-family: $font-serif-jp; }
+
+.btnRow { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
+.primaryBtn {
+  padding: 9px 20px; border: none; border-radius: $radius-md; cursor: pointer;
+  background: $charcoal; color: $white;
+  font-size: 12px; font-family: $font-serif-jp; transition: opacity .2s;
+  &:hover:not(:disabled) { opacity: .85; }
+  &:disabled { opacity: .4; cursor: not-allowed; }
+  @include focus-ring;
+}
+.subBtn {
+  padding: 9px 20px; border-radius: $radius-md; cursor: pointer;
+  background: $white; border: 1px solid rgba($stone, .35); color: $charcoal-light;
+  font-size: 12px; font-family: $font-serif-jp; transition: all .2s;
+  &:hover:not(:disabled) { border-color: $gold; color: $charcoal; }
+  &:disabled { opacity: .4; cursor: not-allowed; }
+  @include focus-ring;
+}
+
+// ── 情報不足ダッシュボード ──────────────────────
+.dashHead {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  margin-bottom: 16px;
+}
+.dashTitle {
+  font-size: 14px; color: $charcoal; font-family: $font-serif-jp;
+  letter-spacing: .06em; margin: 0 auto 0 0;
+}
+// 見出しを置かない行。操作ボタンだけを右に寄せる
+.dashActions {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-left: auto;
+}
+.reloadBtn {
+  display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+  padding: 7px 14px; border-radius: $radius-md; cursor: pointer;
+  background: $white; border: 1px solid rgba($stone, .35); color: $charcoal-light;
+  font-size: 11px; font-family: $font-serif-jp; transition: all .2s;
+  &:hover { border-color: $gold; color: $charcoal; }
+  @include focus-ring;
+}
+
+.grid {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
+.tile {
+  position: relative; text-align: left; cursor: pointer;
+  display: flex; flex-direction: column;
+  min-height: 168px; padding: 34px 18px 18px;
+  background: $white; border: 1px solid rgba($stone, .18);
+  border-radius: $radius-md; box-shadow: $shadow-sm;
+  transition: box-shadow .2s, border-color .2s, transform .2s;
+  &:hover { box-shadow: $shadow-md; border-color: rgba($gold, .45); transform: translateY(-1px); }
+  @include focus-ring;
+}
+
+.badgeNone, .badgePartial, .badgeDone {
+  position: absolute; top: 12px; right: 12px;
+  padding: 3px 12px; border-radius: $radius-full;
+  font-size: 10px; font-family: $font-serif-jp; white-space: nowrap;
+}
+.badgeNone    { background: #A6534A; color: $white; }
+.badgePartial { background: rgba($gold, .9); color: $white; }
+.badgeDone    { background: rgba($green-status, .22); color: #2f7d4f; }
+
+.tileTitle {
+  font-size: 15px; line-height: 1.5; color: $charcoal;
+  font-family: $font-mincho; letter-spacing: .04em;
+}
+.tileCode {
+  margin-top: 6px; font-size: 10px; color: $stone-light;
+  font-family: $font-mono; letter-spacing: .08em;
+}
+
+.tileFoot { margin-top: auto; padding-top: 14px; }
+.rate {
+  display: block; font-size: 15px; color: #A6534A;
+  font-family: $font-cormorant; letter-spacing: .02em;
+}
+.rateDone {
+  display: block; font-size: 15px; color: #2f7d4f;
+  font-family: $font-cormorant; letter-spacing: .02em;
+}
+.barWrap {
+  display: block; height: 4px; margin-top: 6px; border-radius: $radius-full;
+  background: rgba($stone, .18); overflow: hidden;
+}
+.bar {
+  display: block; height: 100%; border-radius: $radius-full;
+  background: $gold; transition: width .3s;
+}
+.count {
+  display: block; margin-top: 5px; text-align: right;
+  font-size: 10px; color: $stone; font-family: $font-mono;
+}
+
+// ── 詳細モーダル ──────────────────────────────
+.overlay {
+  position: fixed; inset: 0; z-index: $z-modal;
+  background: rgba($navy, .45); backdrop-filter: blur(2px);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 40px 20px; overflow-y: auto;
+}
+.modal {
+  width: 100%; max-width: 640px;
+  background: $white; border-radius: $radius-lg; box-shadow: $shadow-lg;
+  padding: 24px 28px 20px;
+}
+.modalHead {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
+}
+.modalCode {
+  margin: 0; font-size: 10px; color: $stone-light;
+  font-family: $font-mono; letter-spacing: .1em;
+}
+.modalTitle {
+  margin: 4px 0 0; font-size: 18px; color: $charcoal;
+  font-family: $font-mincho; letter-spacing: .04em;
+}
+.closeBtn {
+  background: none; border: none; cursor: pointer;
+  font-size: 22px; line-height: 1; color: $stone;
+  &:hover { color: $charcoal; }
+  @include focus-ring;
+}
+.modalMeta {
+  display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  margin-top: 14px;
+}
+.metaText { font-size: 11px; color: $stone; font-family: $font-serif-jp; }
+
+.modalBody { margin-top: 18px; }
+.reqBlock { margin-bottom: 16px; }
+.reqLabel {
+  display: flex; gap: 8px; align-items: flex-start;
+  margin: 0 0 6px; font-size: 12px; line-height: 1.7;
+  color: $charcoal-light; font-family: $font-serif-jp;
+}
+.reqLabelDone { color: #2f7d4f; }
+.reqNo {
+  flex-shrink: 0; width: 18px; height: 18px; border-radius: $radius-full;
+  background: rgba($stone, .15); color: $charcoal-light;
+  font-size: 10px; font-family: $font-mono;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+
+.modalFoot {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-top: 20px; padding-top: 16px;
+  border-top: 1px solid rgba($stone, .15);
+}
+.footNote {
+  margin: 8px 0 0; font-size: 11px; color: $stone; font-family: $font-serif-jp;
+}
+
+// ── 取込時の削除オプション ──────────────────────
+.pruneRow {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin: 4px 0 18px; padding: 12px 14px;
+  background: rgba($gold, .05); border: 1px solid rgba($gold, .25);
+  border-radius: $radius-md; cursor: pointer;
+
+  > input { margin-top: 3px; flex-shrink: 0; }
+
+  strong {
+    display: block; font-size: 12px; color: $charcoal;
+    font-family: $font-serif-jp; font-weight: 600;
+  }
+  small {
+    display: block; margin-top: 4px; font-size: 11px; line-height: 1.8;
+    color: $stone; font-family: $font-serif-jp;
+  }
+}
+
+// ── 情報を集める（PDF／サイト／聞き取り） ──────────
+.collectTabs {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px;
+}
+
+.inputBlock {
+  @include card; padding: 20px;
+  display: flex; flex-direction: column; gap: 12px; align-items: flex-start;
+
+  > .note { margin: 0; }
+  > .upload { flex: none; width: 100%; max-width: 360px; }
+}
+
+// 会話ログ
+.talkLog {
+  width: 100%; max-height: 420px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px; border-radius: $radius-md;
+  background: rgba($cream-dark, .5); border: 1px solid rgba($stone, .15);
+}
+.talkUser, .talkAi {
+  max-width: 82%; padding: 10px 14px; border-radius: $radius-lg;
+  font-size: 13px; line-height: 1.8; font-family: $font-serif-jp;
+  white-space: pre-wrap;
+}
+.talkUser {
+  align-self: flex-end; background: $charcoal; color: $white;
+  border-bottom-right-radius: $radius-sm;
+}
+.talkAi {
+  align-self: flex-start; background: $white; color: $charcoal;
+  border: 1px solid rgba($stone, .2); border-bottom-left-radius: $radius-sm;
+}
+
+.talkInputRow {
+  width: 100%; display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap;
+  > .textarea { flex: 1; min-width: 200px; }
+}
+.micActive {
+  background: $charcoal; color: $white; border-color: $charcoal;
+  &:hover:not(:disabled) { color: $white; }
+}
+
+// 読み取った候補
+.candidateWrap { margin-top: 24px; }
+.candidateHead {
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 10px; margin-bottom: 6px;
+}
+.cardOff { opacity: .5; }
+
+.candidateRow {
+  display: flex; gap: 12px; align-items: flex-start; padding: 16px 18px;
+  > input { margin-top: 4px; flex-shrink: 0; }
+}
+.candidateBody { flex: 1; min-width: 0; }
+.candidateLabel {
+  display: flex; gap: 10px; align-items: baseline; margin: 0 0 4px;
+}
+.candidateTitle {
+  font-size: 13px; color: $charcoal; font-family: $font-serif-jp; font-weight: 600;
+}
+.sourceNote {
+  margin: 6px 0 0; font-size: 10px; color: $stone-light;
+  font-family: $font-serif-jp;
+}

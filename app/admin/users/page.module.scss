@@ -1,0 +1,311 @@
+// app/admin/users/page.module.scss
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+.shell {
+    padding: 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.stateMsg {
+    padding: 40px;
+    text-align: center;
+    color: $stone;
+    font-family: $font-serif-jp;
+}
+
+.headerBtns{
+    display: flex;
+    gap: 10px;
+}
+
+.addBtn {
+    padding: 10px 20px;
+    @include gold-gradient;
+    border: none;
+    border-radius: $radius-md;
+    color: $white;
+    font-size: 13px;
+    font-family: $font-serif-jp;
+    cursor: pointer;
+    transition: opacity 0.2s;
+
+    &:hover {
+        opacity: 0.9;
+    }
+
+    @include focus-ring;
+}
+
+.pwHeaderBtn{
+    padding: 10px 15px;
+    background: transparent;
+    border: #B8945F 1px solid;
+    border-radius: $radius-md;
+    color: #B8945F;
+    font-size: 13px;
+    font-family: $font-serif-jp;
+    cursor: pointer;
+    transition: opacity 0.2s;
+
+    &:hover {
+        opacity: 0.9;
+    }
+}
+
+.formCard {
+    background: $white;
+    border-radius: $radius-lg;
+    border: 1px solid rgba($gold, 0.3);
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 16px rgba($gold, 0.1);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;
+}
+
+.formTitle {
+    font-family: $font-mincho;
+    font-size: 15px;
+    font-weight: 600;
+    color: $charcoal;
+    margin-bottom: 20px;
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.formGrid {
+    display: flex;
+    // grid-template-columns: 1fr 1fr;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 16px;
+
+    @media (max-width: 640px) {
+        grid-template-columns: 1fr;
+    }
+}
+
+.field {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.label {
+    font-size: 11px;
+    color: $stone;
+    letter-spacing: 0.1em;
+    font-family: $font-serif-jp;
+}
+
+.input,
+.select {
+    padding: 10px 14px;
+    border: 1px solid $stone-light;
+    border-radius: $radius-md;
+    font-size: 14px;
+    font-family: $font-serif-jp;
+    color: $charcoal;
+    outline: none;
+    background: $white;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+    width: 100%;
+
+    &:focus {
+        border-color: $gold;
+    }
+}
+
+.formError {
+    padding: 10px 14px;
+    margin-bottom: 14px;
+    background: $red-bg;
+    border: 1px solid $red-border;
+    border-radius: $radius-md;
+    color: $red-error;
+    font-size: 13px;
+    font-family: $font-serif-jp;
+}
+
+.formBtns {
+    display: flex;
+    gap: 10px;
+}
+
+.submitBtn {
+    padding: 10px 24px;
+    @include gold-gradient;
+    border: none;
+    border-radius: $radius-md;
+    color: $white;
+    font-size: 13px;
+    font-family: $font-mincho;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+
+    &:hover:not(:disabled) {
+        opacity: 0.9;
+    }
+
+    @include focus-ring;
+}
+
+.submitBtnDisabled {
+    background: $stone-light;
+    cursor: not-allowed;
+}
+
+.cancelBtn {
+    padding: 10px 20px;
+    background: $white;
+    border: 1px solid $stone-light;
+    border-radius: $radius-md;
+    color: $stone;
+    font-size: 13px;
+    font-family: $font-serif-jp;
+    cursor: pointer;
+    transition: border-color 0.2s;
+
+    &:hover {
+        border-color: $charcoal-light;
+    }
+}
+
+.tableCard {
+    background: $white;
+    border-radius: $radius-lg;
+    border: 1px solid $cream-dark;
+    overflow: hidden;
+    box-shadow: $shadow-md;
+    margin-bottom: 20px;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.th {
+    text-align: left;
+    padding: 12px 20px;
+    font-size: 11px;
+    color: $stone;
+    border-bottom: 1px solid $cream-dark;
+    font-family: $font-serif-jp;
+    font-weight: 400;
+    letter-spacing: 0.05em;
+    background: $cream;
+}
+
+.tr {
+    border-bottom: 1px solid $cream-dark;
+
+    &:last-child {
+        border-bottom: none;
+    }
+
+    &:hover {
+        background: rgba($gold, 0.02);
+    }
+}
+
+.td {
+    padding: 14px 20px;
+    font-size: 13px;
+    font-family: $font-serif-jp;
+}
+
+.userName {
+    color: $charcoal;
+}
+
+.userEmail {
+    color: $charcoal-light;
+}
+
+.dateCell {
+    font-size: 12px;
+    color: $stone;
+}
+
+.roleBadge {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: $radius-full;
+    font-weight: 600;
+}
+
+.roleBadgeAdmin {
+    background: rgba($gold, 0.15);
+    color: $gold-dark;
+}
+
+.roleBadgeStaff {
+    background: rgba($navy, 0.08);
+    color: $charcoal-light;
+}
+
+.deleteBtn {
+    padding: 5px 12px;
+    background: rgba($red-error, 0.08);
+    border: 1px solid rgba($red-error, 0.25);
+    border-radius: $radius-sm;
+    color: $red-error;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: $font-serif-jp;
+    transition: all 0.15s;
+
+    &:hover {
+        background: rgba($red-error, 0.15);
+    }
+}
+
+.selfLabel {
+    font-size: 11px;
+    color: $stone;
+}
+
+.roleDescGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+
+    @media (max-width: 640px) {
+        grid-template-columns: 1fr;
+    }
+}
+
+.roleDescCard {
+    padding: 14px 18px;
+    background: $white;
+    border-radius: $radius-md;
+    border: 1px solid $cream-dark;
+}
+
+.roleDescTitle {
+    font-size: 12px;
+    font-weight: 600;
+    color: $charcoal;
+    font-family: $font-serif-jp;
+    margin-bottom: 4px;
+}
+
+.roleDescBody {
+    font-size: 12px;
+    color: $stone;
+    font-family: $font-serif-jp;
+    line-height: 1.6;
+}

@@ -1,0 +1,253 @@
+// prisma/schema.prisma
+//
+// PostgreSQL に接続します。
+//
+//   DATABASE_URL … アプリと prisma コマンドが共通で使う接続文字列
+//
+// Dokploy の PostgreSQL は接続プーラーを挟まないため、接続は1本で足ります。
+// （Supabase の Transaction pooler を使う場合のみ DIRECT_URL が別途必要でした）
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────────────────────────
+// 管理画面
+// ───────────────────────────────────────────────
+
+/// 管理画面のログインユーザー。role は 'ADMIN' | 'STAFF'
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   @default("STAFF")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("admin_users")
+}
+
+/// 分析画面のタイムラインに表示するメモ
+model TimelineMemo {
+  id        String   @id @default(cuid())
+  date      DateTime
+  title     String
+  body      String?
+  createdAt DateTime @default(now())
+  createdBy String?
+
+  @@map("timeline_memos")
+}
+
+// ───────────────────────────────────────────────
+// AIの知識（管理画面から編集します）
+// ───────────────────────────────────────────────
+
+/// 案件情報。AIが回答の根拠にするメインの知識。
+model PropertyInfo {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("property_info")
+}
+
+/// 話し方・推しポイント・ヒアリング方針など、接客ノウハウの追記。
+/// section は 'appeal' | 'tone' | 'technique'
+model SalesPrompt {
+  id        String   @id @default(cuid())
+  section   String   @unique
+  content   String
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("sales_prompts")
+}
+
+/// 追加でAIに読ませたい資料。category は KnowledgeCategory.id（または 'property'）。
+model KnowledgeDoc {
+  id        String   @id @default(cuid())
+  category  String
+  title     String
+  content   String
+  fileName  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@map("knowledge_docs")
+}
+
+/// 情報登録の分類。target で「AIがどう使うか」を指定する。
+/// target='property' … 物件知識として渡す / 'chat' … 接客情報として渡す
+model KnowledgeCategory {
+  id        String   @id @default(cuid())
+  label     String
+  hint      String?
+  target    String   @default("chat")
+  sort      Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("knowledge_categories")
+}
+
+// ───────────────────────────────────────────────
+// 会話ログ
+// ───────────────────────────────────────────────
+
+model ChatSession {
+  id           String        @id @default(cuid())
+  sessionKey   String        @unique @default(cuid())
+  browserId    String? // ブラウザごとの識別ID（同一利用者の判定用）
+  userAgent    String?
+  ipAddress    String?
+  staySeconds  Int?
+  summary      String? // 会話の要約（次回の文脈として使う）
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  messages     ChatMessage[]
+  questionLogs QuestionLog[]
+
+  @@index([browserId])
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id        String      @id @default(cuid())
+  sessionId String
+  role      String // 'user' | 'assistant'
+  content   String
+  createdAt DateTime    @default(now())
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("chat_messages")
+}
+
+/// 質問の分類ログ。管理画面・分析をつくるときの土台。
+model QuestionLog {
+  id         String      @id @default(cuid())
+  sessionId  String
+  question   String
+  category   String?
+  keywords   String[]
+  answerable Boolean     @default(true)
+  status     String      @default("answered")
+  createdAt  DateTime    @default(now())
+  session    ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([category])
+  @@index([sessionId])
+  @@map("question_logs")
+}
+
+// ───────────────────────────────────────────────
+// 知識設計（ペルソナ / 情報マトリクス / 想定問答）
+// chatbot-knowledge-designer が出力する JSON を取り込む領域。
+// ───────────────────────────────────────────────
+
+/// 設計全体のメタ情報。取り込みのたびに1件だけ保持する。
+model KnowledgeDesign {
+  id          String   @id @default(cuid())
+  market      String
+  scope       Json?
+  /// チャットボットが絶対に間違えてはいけない事実
+  hardRules   String[]
+  /// 想定問答の運用ルール（refが1つでも未登録なら回答不可、など）
+  answerPolicy String?
+  /// 宅地建物取引業法・個人情報保護法に由来する、会話全体にかかる制約
+  complianceRules String[]
+  /// 橋渡し（次の一歩の出し方）の運用ルール
+  bridgeRules  String[]
+  /// 段階 S1〜S5 のラベル
+  stageLabels  Json?
+  /// 橋渡し B0〜B5 のラベル
+  bridgeLabels Json?
+  generatedAt String?
+  importedAt  DateTime @default(now())
+
+  @@map("knowledge_designs")
+}
+
+/// 顧客タイプ。code は1文字（A〜J など）。
+model Persona {
+  code      String   @id
+  name      String
+  english   String?
+  /// 定義・購買心理トリガー・返答方針・禁句（JSON取込で入り、管理画面から追記できる）
+  definition String?
+  trigger    String?
+  replyPolicy String?
+  ngWords    String?
+  sort      Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@map("personas")
+}
+
+/// 情報マトリクス。AIが答えるために必要な情報の単位。
+model KnowledgeMatrix {
+  code         String   @id
+  no           Int
+  title        String
+  english      String?
+  group        String?
+  /// 対象ペルソナのコード配列
+  personas     String[]
+  /// document | data | calculation | regulation
+  sourceType   String
+  /// quarterly | annual
+  refreshCycle String
+  /// legal | tax | finance | operations | sales | content
+  owner        String
+  /// 必要情報（通常3点）
+  required     String[]
+  /// 必要情報1点ごとの登録内容。required と同じ並び順・同じ長さで持つ。
+  /// 空文字の要素は「まだ埋まっていない」を意味し、進捗の分母・分子になる。
+  requiredContent String[] @default([])
+  /// AIが最も誤答しやすい箇所
+  pitfall      String?
+  /// pending | registered … registered になって初めてAIが答えてよい
+  status       String   @default("pending")
+  /// 登録済みの情報本文。ここが埋まるとAIの回答根拠になる
+  content      String?
+  updatedAt    DateTime @updatedAt
+  updatedBy    String?
+
+  @@index([status])
+  @@index([owner])
+  @@map("knowledge_matrices")
+}
+
+/// 想定問答。回答本文は原則持たず、方針とリスク区分を持つ。
+model FaqSeed {
+  id        String   @id
+  q         String
+  alt       String[]
+  /// 参照する KnowledgeMatrix.code の配列
+  ref       String[]
+  policy    String?
+  /// safe | caution | escalate
+  risk      String   @default("caution")
+  /// 段階（顧客がどこにいるか）S1〜S5
+  stage     String?
+  /// 橋渡し（次の一歩の出し方）B0〜B5
+  bridge    String?
+  /// 情報登録を待たずに答えられる不変の事実のみ
+  answer    String?
+  updatedAt DateTime @updatedAt
+
+  @@index([risk])
+  @@map("faq_seeds")
+}

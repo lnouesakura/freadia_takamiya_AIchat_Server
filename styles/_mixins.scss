@@ -1,0 +1,185 @@
+// styles/_mixins.scss
+@use './variables' as *;
+
+// ── Gold gradient ────────────────────────────────
+@mixin gold-gradient($deg: 135deg) {
+  background: linear-gradient($deg, $gold, $gold-dark);
+}
+
+@mixin gold-gradient-h {
+  background: linear-gradient(90deg, transparent, $gold, transparent);
+}
+
+// ── Navy gradient ────────────────────────────────
+@mixin navy-gradient($deg: 135deg) {
+  background: linear-gradient($deg, $navy 0%, $navy-light 100%);
+}
+
+// ── Gold line divider ────────────────────────────
+@mixin gold-line {
+  height: 1px;
+  @include gold-gradient-h;
+}
+
+// ── Card base ────────────────────────────────────
+@mixin card {
+  background: $white;
+  border-radius: $radius-lg;
+  border: 1px solid $cream-dark;
+  box-shadow: $shadow-md;
+}
+
+// ── Emblem circle ────────────────────────────────
+@mixin emblem($size: 36px) {
+  width: $size;
+  height: $size;
+  border: 1.5px solid $gold;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+// ── Badge ────────────────────────────────────────
+@mixin badge($bg, $color) {
+  display: inline-block;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: $radius-full;
+  background: $bg;
+  color: $color;
+  font-family: $font-serif-jp;
+  white-space: nowrap;
+}
+
+// ── Section title ────────────────────────────────
+@mixin section-title {
+  font-family: $font-mincho;
+  font-size: 14px;
+  font-weight: 600;
+  color: $charcoal;
+  letter-spacing: 0.05em;
+}
+
+// ── Truncate ────────────────────────────────────
+@mixin truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// ── Focus ring ───────────────────────────────────
+@mixin focus-ring {
+  &:focus-visible {
+    outline: 2px solid $gold;
+    outline-offset: 2px;
+  }
+}
+
+// ── Responsive ───────────────────────────────────
+@mixin sm { @media (min-width: $bp-sm) { @content; } }
+@mixin md { @media (min-width: $bp-md) { @content; } }
+@mixin lg { @media (min-width: $bp-lg) { @content; } }
+
+// ── Cyber Admin Mixins ───────────────────────────
+@mixin cyber-card {
+  background: $cyber-surface;
+  border: 1px solid $cyber-border;
+  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 0.5px;
+    background: linear-gradient(90deg, $cyber-accent, transparent);
+    opacity: 0.25;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 1.5px; height: 20px;
+    background: $cyber-accent;
+    opacity: 0.5;
+  }
+}
+
+@mixin cyber-card-title {
+  font-family: $font-mono;
+  font-size: 9px;
+  color: $cyber-accent;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  display: flex; align-items: center; gap: 5px;
+
+  &::before {
+    content: '';
+    display: inline-block;
+    width: 6px; height: 0.8px;
+    background: $cyber-accent;
+  }
+}
+
+@mixin cyber-jp-sub {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-weight: 300;
+  color: $cyber-text-dim;
+  letter-spacing: 0.05em;
+}
+
+@mixin cyber-input {
+  background: $cyber-surface;
+  border: 1px solid $cyber-border;
+  border-radius: 4px;
+  color: $cyber-text;
+  font-family: $font-mono;
+  font-size: 11px;
+  outline: none;
+  transition: border-color 0.15s;
+  &::placeholder { color: $cyber-text-dim; }
+  &:focus { border-color: $cyber-border2; }
+}
+
+@mixin cyber-btn {
+  font-family: $font-mono;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid $cyber-border2;
+  background: rgba(0,200,255,0.06);
+  color: $cyber-accent;
+  &:hover:not(:disabled) {
+    background: rgba(0,200,255,0.12);
+    box-shadow: 0 0 12px rgba(0,200,255,0.15);
+  }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+
+@mixin cyber-btn-danger {
+  border-color: rgba(255,60,60,0.3);
+  background: rgba(255,60,60,0.06);
+  color: rgba(255,100,100,0.8);
+  &:hover:not(:disabled) {
+    background: rgba(255,60,60,0.12);
+    border-color: rgba(255,60,60,0.5);
+  }
+}
+
+@mixin cyber-badge($color) {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-family: $font-mono;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  background: rgba($color, 0.08);
+  border: 1px solid rgba($color, 0.25);
+  color: $color;
+}

@@ -1,0 +1,52 @@
+// components/admin/AnswerBadge/AnswerBadge.module.scss
+@use '../../../styles/variables' as *;
+
+// ── 共通ベーススタイル ──────────────────────────────
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  font-family: $font-serif-jp;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: $radius-full;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+}
+
+// ── 各ステータスの色定義 ───────────────────────────
+// 目立つ順：未回答 > 相談 > 案内 > 情報 > 回答（記載なし）
+
+// 未回答：最も目立つ赤系（無関係な質問）
+.unrelated {
+  background: rgba($red-error, 0.10);
+  color: $red-error;
+  border: 1px solid rgba($red-error, 0.25);
+}
+
+// 相談：オレンジ系（人への相談が必要）
+.consult {
+  background: rgba(#C97B2E, 0.10);
+  color: #A8621F;
+  border: 1px solid rgba(#C97B2E, 0.28);
+}
+
+// 案内：ゴールド系（サイトカラーに馴染む・スタッフ案内）
+.guide {
+  background: rgba($gold, 0.12);
+  color: $gold-dark;
+  border: 1px solid rgba($gold, 0.30);
+}
+
+// 情報：ネイビー薄め（物件情報にない内容）
+.info {
+  background: rgba($navy, 0.07);
+  color: $navy-light;
+  border: 1px solid rgba($navy, 0.18);
+}
+
+// 回答：表示なし相当・最も控えめ（通常回答）
+.answered {
+  background: transparent;
+  color: $stone;
+  border: 1px solid rgba($stone-light, 0.5);
+}

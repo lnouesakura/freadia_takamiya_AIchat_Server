@@ -1,0 +1,516 @@
+// app/admin/knowledge/page.module.scss
+// 情報登録（取り込む／物件情報／資料）
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+.page {
+  padding: 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.stateMsg {
+  padding: 40px; text-align: center;
+  font-family: $font-serif-jp; font-size: 13px; color: $stone;
+}
+
+// ── 進捗サマリー ──────────────────────────────
+.statRow {
+  display: flex; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.stat {
+  @include card; padding: 14px 18px; flex: 1; min-width: 180px;
+  display: flex; flex-direction: column; gap: 2px;
+  > strong {
+    font-size: 22px; color: $charcoal; font-family: $font-cormorant; letter-spacing: .02em;
+  }
+}
+.statLabel { font-size: 11px; color: $stone; font-family: $font-serif-jp; letter-spacing: .08em; }
+.statNote  { font-size: 10px; color: $stone-light; font-family: $font-serif-jp; }
+
+// ── タブ ──────────────────────────────────────
+.tabs {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  border-bottom: 1px solid rgba($stone, .18);
+  margin-bottom: 20px;
+}
+.tab {
+  padding: 9px 16px; background: none; border: none; cursor: pointer;
+  font-family: $font-serif-jp; font-size: 12px; color: $stone;
+  border-bottom: 2px solid transparent; transition: color .2s, border-color .2s;
+  &:hover { color: $charcoal; }
+  @include focus-ring;
+}
+.tabActive { color: $charcoal; border-bottom-color: $gold; font-weight: 600; }
+
+.panel { padding: 0; }
+
+// ── 共通部品 ──────────────────────────────────
+.note {
+  margin: 14px 0; font-size: 11px; line-height: 1.8;
+  color: $stone; font-family: $font-serif-jp;
+}
+.sub { margin: 12px 0 0; font-size: 11px; color: $stone; font-family: $font-serif-jp; }
+.fieldLabel {
+  margin: 16px 0 6px; font-size: 11px; letter-spacing: .08em;
+  color: $charcoal; font-family: $font-serif-jp; font-weight: 600;
+}
+.err { margin-top: 8px; font-size: 11px; color: $red-error; font-family: $font-serif-jp; }
+.footNote { margin: 8px 0 0; font-size: 11px; color: $stone; font-family: $font-serif-jp; }
+
+.errorBox, .warnBox, .okBox {
+  margin-top: 16px; padding: 14px 16px; border-radius: $radius-md;
+  font-size: 12px; font-family: $font-serif-jp; line-height: 1.8;
+  > ul { margin: 6px 0 0; padding-left: 18px; }
+}
+.errorBox { background: $red-bg; border: 1px solid $red-border; color: $red-error; }
+.warnBox  { background: rgba($gold, .07); border: 1px solid rgba($gold, .3); color: $gold-dark; }
+.okBox    { background: rgba($green-status, .1); border: 1px solid rgba($green-status, .35); color: #2f7d4f; }
+.boxTitle { font-weight: 600; margin: 0; }
+
+.blockNote {
+  margin: 12px 0 0; padding: 10px 12px; border-radius: $radius-md;
+  background: rgba($navy, .04); border: 1px solid rgba($navy, .15);
+  font-size: 11px; line-height: 1.8; color: $navy; font-family: $font-serif-jp;
+}
+
+.textarea {
+  width: 100%; padding: 10px 12px; resize: vertical;
+  border: 1px solid rgba($stone, .35); border-radius: $radius-md;
+  font-size: 12px; line-height: 1.8; color: $charcoal;
+  font-family: $font-serif-jp; background: $white;
+  @include focus-ring;
+}
+.input {
+  width: 100%; padding: 9px 12px;
+  border: 1px solid rgba($stone, .35); border-radius: $radius-md;
+  font-size: 13px; color: $charcoal; font-family: $font-serif-jp; background: $white;
+  @include focus-ring;
+}
+.select, .search {
+  padding: 7px 12px; border: 1px solid rgba($stone, .35);
+  border-radius: $radius-md; background: $white;
+  font-size: 12px; color: $charcoal; font-family: $font-serif-jp;
+  @include focus-ring;
+}
+.search { min-width: 200px; }
+
+.chip {
+  padding: 6px 14px; border-radius: $radius-full; cursor: pointer;
+  border: 1px solid rgba($stone, .35); background: $white;
+  font-size: 11px; color: $stone; font-family: $font-serif-jp;
+  transition: all .2s;
+  &:hover { border-color: $gold; color: $charcoal; }
+  @include focus-ring;
+}
+.chipActive { background: $charcoal; border-color: $charcoal; color: $white; }
+
+.filterRow {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.filterGroup { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.btnRow { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+
+.primaryBtn {
+  padding: 9px 20px; border: none; border-radius: $radius-md; cursor: pointer;
+  background: $charcoal; color: $white;
+  font-size: 12px; font-family: $font-serif-jp; transition: opacity .2s;
+  &:hover:not(:disabled) { opacity: .85; }
+  &:disabled { opacity: .4; cursor: not-allowed; }
+  @include focus-ring;
+}
+.subBtn {
+  padding: 9px 20px; border-radius: $radius-md; cursor: pointer;
+  background: $white; border: 1px solid rgba($stone, .35); color: $charcoal-light;
+  font-size: 12px; font-family: $font-serif-jp; transition: all .2s;
+  &:hover:not(:disabled) { border-color: $gold; color: $charcoal; }
+  &:disabled { opacity: .4; cursor: not-allowed; }
+  @include focus-ring;
+}
+.linkBtn {
+  background: none; border: none; cursor: pointer; padding: 0;
+  font-size: 11px; color: $gold-dark; font-family: $font-serif-jp;
+  text-decoration: underline;
+  @include focus-ring;
+}
+
+.list { display: flex; flex-direction: column; gap: 8px; }
+.card { @include card; overflow: hidden; }
+.cardOff { opacity: .5; }
+.cardHead {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px; background: none; border: none; cursor: pointer;
+  text-align: left;
+  &:hover { background: rgba($cream-dark, .5); }
+  @include focus-ring;
+}
+.cardTitle {
+  flex: 1; font-size: 13px; color: $charcoal;
+  font-family: $font-serif-jp; @include truncate;
+}
+.cardBody { padding: 4px 18px 18px; border-top: 1px solid rgba($stone, .12); }
+.code {
+  font-size: 11px; color: $gold-dark; font-family: $font-mono;
+  letter-spacing: .05em; flex-shrink: 0;
+}
+.tags { display: flex; gap: 5px; flex-shrink: 0; flex-wrap: wrap; }
+.tag, .tagWarn, .tagDone, .tagPending {
+  padding: 3px 9px; border-radius: $radius-full;
+  font-size: 10px; font-family: $font-serif-jp; white-space: nowrap;
+}
+.tag        { background: rgba($stone, .12); color: $charcoal-light; }
+.tagWarn    { background: rgba($gold, .18); color: $gold-dark; }
+.tagDone    { background: rgba($green-status, .18); color: #2f7d4f; }
+.tagPending { background: rgba($stone, .12); color: $stone; }
+
+.dashHead {
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 10px; margin-bottom: 16px;
+}
+.dashTitle {
+  font-size: 14px; color: $charcoal; font-family: $font-serif-jp;
+  letter-spacing: .06em; margin: 0;
+}
+
+// ── 取り込む：入口 ────────────────────────────
+.sourceTabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+
+.inputBlock {
+  @include card; padding: 20px;
+  display: flex; flex-direction: column; gap: 12px; align-items: flex-start;
+
+  > .note { margin: 0; }
+  > .upload { flex: none; width: 100%; max-width: 420px; }
+  > .search { width: 100%; }
+}
+
+.upload {
+  @include card; padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 4px; cursor: pointer;
+  border-style: dashed;
+  &:hover { border-color: rgba($gold, .5); }
+  > input { margin-top: 8px; font-size: 11px; font-family: $font-serif-jp; }
+}
+.uploadLabel { font-size: 13px; font-weight: 600; color: $charcoal; font-family: $font-serif-jp; }
+.uploadHint  { font-size: 11px; color: $stone; font-family: $font-mono; }
+.fileName    { margin-top: 6px; font-size: 11px; color: $gold-dark; font-family: $font-serif-jp; }
+
+.flowBox {
+  @include card; padding: 16px 20px; margin-bottom: 18px;
+  background: rgba($cream-dark, .45);
+}
+.flowTitle {
+  margin: 0 0 8px; font-size: 12px; font-weight: 600;
+  color: $charcoal; font-family: $font-serif-jp; letter-spacing: .06em;
+}
+.flowList {
+  margin: 0; padding-left: 18px;
+  > li {
+    font-size: 11px; line-height: 1.9; color: $charcoal-light; font-family: $font-serif-jp;
+  }
+}
+
+// ── 設計データ（JSON取込） ────────────────────
+.uploadRow { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.ruleList {
+  margin: 6px 0 0; padding-left: 18px;
+  > li {
+    font-size: 12px; line-height: 1.8; color: $charcoal-light;
+    font-family: $font-serif-jp; margin-bottom: 4px;
+  }
+}
+.pruneRow {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin: 4px 0 18px; padding: 12px 14px;
+  background: rgba($gold, .05); border: 1px solid rgba($gold, .25);
+  border-radius: $radius-md; cursor: pointer;
+
+  > input { margin-top: 3px; flex-shrink: 0; }
+
+  strong {
+    display: block; font-size: 12px; color: $charcoal;
+    font-family: $font-serif-jp; font-weight: 600;
+  }
+  small {
+    display: block; margin-top: 4px; font-size: 11px; line-height: 1.8;
+    color: $stone; font-family: $font-serif-jp;
+  }
+}
+
+// 会話ログ
+.talkLog {
+  width: 100%; max-height: 420px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px; border-radius: $radius-md;
+  background: rgba($cream-dark, .5); border: 1px solid rgba($stone, .15);
+}
+.talkUser, .talkAi {
+  max-width: 82%; padding: 10px 14px; border-radius: $radius-lg;
+  font-size: 13px; line-height: 1.8; font-family: $font-serif-jp;
+  white-space: pre-wrap;
+}
+.talkUser {
+  align-self: flex-end; background: $charcoal; color: $white;
+  border-bottom-right-radius: $radius-sm;
+}
+.talkAi {
+  align-self: flex-start; background: $white; color: $charcoal;
+  border: 1px solid rgba($stone, .2); border-bottom-left-radius: $radius-sm;
+}
+.talkInputRow {
+  width: 100%; display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap;
+  > .textarea { flex: 1; min-width: 200px; }
+}
+.micActive {
+  background: $charcoal; color: $white; border-color: $charcoal;
+  &:hover:not(:disabled) { color: $white; }
+}
+
+// ── 取り込む：振り分け結果 ────────────────────
+.resultWrap { margin-top: 26px; }
+
+.destGroup {
+  @include card; padding: 0; margin-bottom: 16px; overflow: hidden;
+}
+.destHead {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 14px 18px; background: rgba($cream-dark, .5);
+  border-bottom: 1px solid rgba($stone, .12);
+}
+.destTitle {
+  margin: 0; font-size: 13px; font-weight: 600;
+  color: $charcoal; font-family: $font-serif-jp; letter-spacing: .04em;
+}
+.destWhere {
+  font-size: 10px; color: $stone; font-family: $font-serif-jp;
+  padding: 3px 9px; border-radius: $radius-full; background: rgba($stone, .12);
+}
+.destCount {
+  margin-left: auto; font-size: 11px; color: $stone; font-family: $font-mono;
+}
+.destBody { padding: 8px 18px 18px; }
+
+.entryRow {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 14px 0; border-bottom: 1px solid rgba($stone, .1);
+  &:last-child { border-bottom: none; }
+  > input[type='checkbox'] { margin-top: 4px; flex-shrink: 0; }
+}
+.entryBody { flex: 1; min-width: 0; }
+.entryHead {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 4px;
+}
+.entryTitle {
+  font-size: 13px; color: $charcoal; font-family: $font-serif-jp; font-weight: 600;
+}
+.sectionBadge {
+  padding: 3px 10px; border-radius: $radius-full;
+  font-size: 11px; font-family: $font-serif-jp; font-weight: 600;
+}
+.sourceNote {
+  margin: 6px 0 0; font-size: 10px; color: $stone-light; font-family: $font-serif-jp;
+}
+
+.modeToggle {
+  display: inline-flex; margin-left: auto;
+  border: 1px solid rgba($stone, .3); border-radius: $radius-md; overflow: hidden;
+}
+.modeBtn {
+  border: none; background: none; cursor: pointer;
+  padding: 4px 11px; font-size: 11px; color: $stone; font-family: $font-serif-jp;
+  &:hover { color: $charcoal; }
+  @include focus-ring;
+}
+.modeOn { background: rgba($stone, .14); color: $charcoal; }
+
+.docBox { padding: 4px 0 0; }
+.docField {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px;
+  > .input { flex: 1; min-width: 200px; }
+}
+.docPreview {
+  margin: 0; max-height: 180px; overflow-y: auto;
+  padding: 12px 14px; border-radius: $radius-md;
+  background: rgba($cream-dark, .5); border: 1px solid rgba($stone, .15);
+  font-size: 11px; line-height: 1.8; color: $charcoal-light;
+  font-family: $font-serif-jp; white-space: pre-wrap;
+}
+
+.applyBar {
+  position: sticky; bottom: 0; z-index: 2;
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  margin-top: 18px; padding: 14px 18px;
+  background: $white; border: 1px solid rgba($stone, .2);
+  border-radius: $radius-md; box-shadow: $shadow-md;
+}
+.applySummary { font-size: 12px; color: $charcoal-light; font-family: $font-serif-jp; }
+
+// ── 物件情報 ──────────────────────────────────
+.propLayout {
+  display: grid; gap: 20px;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  @media (max-width: 960px) { grid-template-columns: 1fr; }
+}
+.propTabs {
+  display: flex; gap: 5px; flex-wrap: wrap; margin: 18px 0 12px;
+}
+.propTab {
+  position: relative;
+  padding: 7px 13px; border-radius: $radius-full; cursor: pointer;
+  border: 1px solid rgba($stone, .3); background: $white;
+  font-size: 11px; color: $stone; font-family: $font-serif-jp;
+  transition: all .2s;
+  &:hover { border-color: $gold; color: $charcoal; }
+  @include focus-ring;
+}
+.propTabActive { background: $charcoal; border-color: $charcoal; color: $white; }
+.propTabBrand  { border-style: dashed; }
+.propDot {
+  display: inline-block; width: 5px; height: 5px; margin-left: 6px;
+  border-radius: 50%; background: $gold; vertical-align: middle;
+}
+.propUnsaved {
+  display: inline-block; width: 5px; height: 5px; margin-left: 4px;
+  border-radius: 50%; background: #A6534A; vertical-align: middle;
+}
+.editorHead {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 6px;
+}
+.charCount { font-size: 10px; color: $stone-light; font-family: $font-mono; }
+.textareaUnsaved { border-color: rgba(#A6534A, .5); }
+
+.unsavedBanner {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  margin-top: 14px; padding: 10px 14px; border-radius: $radius-md;
+  background: rgba($gold, .07); border: 1px solid rgba($gold, .3);
+  font-size: 11px; color: $gold-dark; font-family: $font-serif-jp;
+}
+.unsavedTag {
+  padding: 2px 9px; border-radius: $radius-full; cursor: pointer;
+  background: rgba($gold, .18); color: $gold-dark; font-size: 10px;
+}
+.savedMsg {
+  display: inline-flex; gap: 5px; align-items: center;
+  font-size: 11px; color: #2f7d4f; font-family: $font-serif-jp;
+}
+
+.infoCard, .catCard {
+  @include card; padding: 16px 18px; margin-bottom: 12px;
+}
+.infoTitle {
+  margin: 0 0 10px; font-size: 11px; letter-spacing: .08em;
+  color: $charcoal; font-family: $font-serif-jp; font-weight: 600;
+}
+.infoBody {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 8px;
+}
+.infoLabel { font-size: 11px; color: $stone; font-family: $font-serif-jp; }
+.infoValue { font-size: 11px; color: $charcoal-light; font-family: $font-serif-jp; }
+.catRow {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 5px 0; border-bottom: 1px solid rgba($stone, .08);
+  &:last-child { border-bottom: none; }
+}
+.catName { flex: 1; font-size: 11px; color: $charcoal-light; font-family: $font-serif-jp; }
+.catNameActive { color: $charcoal; font-weight: 600; }
+.catLen { font-size: 10px; color: $stone; font-family: $font-mono; }
+.catLenEmpty { color: $stone-light; }
+
+// ── 資料 ──────────────────────────────────────
+.docSection { margin-bottom: 22px; }
+.docSectionTitle {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 8px;
+  font-size: 13px; color: $charcoal; font-family: $font-serif-jp; letter-spacing: .04em;
+}
+.docSectionCount {
+  padding: 2px 9px; border-radius: $radius-full;
+  background: rgba($stone, .12); color: $charcoal-light;
+  font-size: 10px; font-family: $font-mono;
+}
+.docRow {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  padding: 12px 16px; margin-bottom: 6px;
+  background: $white; border: 1px solid rgba($stone, .18);
+  border-radius: $radius-md;
+}
+.docMain {
+  flex: 1; min-width: 180px; text-align: left; cursor: pointer;
+  background: none; border: none; padding: 0;
+  display: flex; flex-direction: column; gap: 3px;
+  @include focus-ring;
+}
+.docName { font-size: 13px; color: $charcoal; font-family: $font-serif-jp; @include truncate; }
+.docSnippet { font-size: 11px; color: $stone; font-family: $font-serif-jp; @include truncate; }
+.docDel {
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; color: $stone; font-family: $font-serif-jp;
+  &:hover { color: $red-error; }
+  @include focus-ring;
+}
+.empty { font-size: 11px; color: $stone-light; font-family: $font-serif-jp; padding: 4px 0; }
+
+.manageCard {
+  @include card; padding: 16px 20px; margin-bottom: 20px;
+}
+.manageHead {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 10px;
+}
+.catManageRow {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 0; border-bottom: 1px solid rgba($stone, .1);
+  &:last-child { border-bottom: none; }
+}
+.catManageName { font-size: 12px; color: $charcoal; font-family: $font-serif-jp; }
+.catManageTarget {
+  margin-left: 8px; padding: 2px 9px; border-radius: $radius-full;
+  background: rgba($stone, .12); color: $charcoal-light;
+  font-size: 10px; font-family: $font-serif-jp;
+}
+.catManageActions { margin-left: auto; display: flex; gap: 6px; }
+
+// ── モーダル ──────────────────────────────────
+.overlay {
+  position: fixed; inset: 0; z-index: $z-modal;
+  background: rgba($navy, .45); backdrop-filter: blur(2px);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 40px 20px; overflow-y: auto;
+}
+.modal {
+  width: 100%; max-width: 640px;
+  background: $white; border-radius: $radius-lg; box-shadow: $shadow-lg;
+  padding: 24px 28px 20px;
+  position: relative;
+}
+.modalClose {
+  position: absolute; top: 14px; right: 18px;
+  background: none; border: none; cursor: pointer;
+  font-size: 22px; line-height: 1; color: $stone;
+  &:hover { color: $charcoal; }
+  @include focus-ring;
+}
+.modalCat {
+  margin: 0; font-size: 10px; color: $stone-light;
+  font-family: $font-serif-jp; letter-spacing: .1em;
+}
+.modalTitle {
+  margin: 4px 0 0; font-size: 18px; color: $charcoal;
+  font-family: $font-mincho; letter-spacing: .04em;
+}
+.modalBody {
+  margin: 18px 0 0; max-height: 56vh; overflow-y: auto;
+  padding: 14px; border-radius: $radius-md;
+  background: rgba($cream-dark, .5); border: 1px solid rgba($stone, .15);
+  font-size: 12px; line-height: 1.9; color: $charcoal-light;
+  font-family: $font-serif-jp; white-space: pre-wrap;
+}
+.modalActions {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-top: 20px; padding-top: 16px;
+  border-top: 1px solid rgba($stone, .15);
+}
+.targetRow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }

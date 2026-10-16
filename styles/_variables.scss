@@ -1,0 +1,70 @@
+// styles/_variables.scss
+
+// ── Colors ──────────────────────────────────────
+$gold: #B8945F;
+$gold-light: #D4AF7A;
+$gold-dark: #8B6E3F;
+$cream: #FAF8F4;
+$cream-dark: #F0EDE6;
+$charcoal: #2C2C2C;
+$charcoal-light: #4A4A4A;
+$stone: #8A8680;
+$stone-light: #C4C0BA;
+$white: #FFFFFF;
+$navy: #1A2332;
+$navy-light: #243040;
+$green-status: #4ade80;
+$red-error: #dc2626;
+$red-bg: rgba(239, 68, 68, 0.08);
+$red-border: rgba(239, 68, 68, 0.25);
+
+// ── Typography ──────────────────────────────────
+$font-serif-jp: 'Noto Serif JP', serif;
+$font-mincho: 'Shippori Mincho', serif;
+$font-cormorant: 'Cormorant Garamond', serif;
+$font-beau: "Beau Rivage", cursive;
+$font-sans: "Noto Sans JP", sans-serif;
+$font-bellefair: "Bellefair", serif;
+$font-nunito: "Nunito", sans-serif;
+$font-nunito-sans: "Nunito Sans", sans-serif;
+$font-ipa: var(--font-ipa-gothic), sans-serif;
+$font-jost: "Jost", sans-serif;
+
+// ── Spacing ──────────────────────────────────────
+$radius-sm: 6px;
+$radius-md: 8px;
+$radius-lg: 12px;
+$radius-xl: 16px;
+$radius-full: 9999px;
+
+// ── Shadows ──────────────────────────────────────
+$shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.05);
+$shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+$shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.1);
+$shadow-navy: 0 2px 12px rgba(26, 35, 50, 0.25);
+
+// ── Z-index ──────────────────────────────────────
+$z-header: 50;
+$z-input: 40;
+$z-modal: 100;
+
+// ── Breakpoints ──────────────────────────────────
+$bp-sm: 640px;
+$bp-md: 768px;
+$bp-lg: 1024px;
+
+// ── Cyber Admin Theme ────────────────────────────
+$cyber-bg: #080C10;
+$cyber-surface: #0D1117;
+$cyber-surface2: #111820;
+$cyber-border: rgba(0, 200, 255, 0.12);
+$cyber-border2: rgba(0, 200, 255, 0.25);
+$cyber-accent: #00C8FF;
+$cyber-accent2: #0066FF;
+$cyber-green: #00FF88;
+$cyber-yellow: #FFD700;
+$cyber-text: #C8D8E8;
+$cyber-text-dim: rgba(200, 216, 232, 0.45);
+$cyber-glow: 0 0 12px rgba(0, 200, 255, 0.3);
+$cyber-glow-sm: 0 0 6px rgba(0, 200, 255, 0.2);
+$font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;

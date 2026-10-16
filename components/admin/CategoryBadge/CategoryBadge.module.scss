@@ -1,0 +1,13 @@
+// components/admin/CategoryBadge/CategoryBadge.module.scss
+@use '../../../styles/variables' as *;
+
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: rgba($gold, 0.1);
+  color: $gold-dark;
+  font-family: $font-serif-jp;
+  white-space: nowrap;
+}

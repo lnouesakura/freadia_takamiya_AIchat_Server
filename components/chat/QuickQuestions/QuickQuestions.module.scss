@@ -1,0 +1,48 @@
+// components/chat/QuickQuestions/QuickQuestions.module.scss
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+.wrapper {
+  width: 90%;
+  margin: 0 auto;
+  padding: 4px 0 12px;
+}
+
+.label {
+  font-size: 11px;
+  color: #373737;
+  letter-spacing: 0.15em;
+  margin-bottom: 10px;
+  font-family: $font-serif-jp;
+}
+
+.list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.chip {
+  padding: 7px 14px;
+  background: #FAFAFA;
+  border: 1px solid #4C4948;
+  border-radius: $radius-full;
+  font-size: 12px;
+  color: #4C4948;
+  font-family: $font-serif-jp;
+  cursor: pointer;
+  transition: all .5s ease;
+
+  &:hover:not(:disabled) {
+    border-color: #4C4948;
+    color: #FAFAFA;
+    background: #4C4948;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  @include focus-ring;
+}

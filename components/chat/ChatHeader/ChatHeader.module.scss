@@ -1,0 +1,371 @@
+// components/chat/ChatHeader/ChatHeader.module.scss
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+.header {
+  // background: $navy;
+  background: #fff;
+  position: sticky;
+  top: 0;
+  z-index: $z-header;
+  height: 80px;
+  // box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+}
+
+.goldBar {
+  height: 2px;
+  background: linear-gradient(90deg, $gold-dark, $gold-light, $gold, $gold-light, $gold-dark);
+}
+
+.inner {
+  // max-widths: 1200px;
+  width: 95%;
+  height: 100%;
+  margin: 0 auto;
+  padding: 12px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.emblem {
+  @include emblem(38px);
+  flex-shrink: 0;
+}
+
+.title {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.titleSub {
+  font-family: $font-cormorant;
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  color: $gold-light;
+  text-transform: uppercase;
+}
+
+.titleMain {
+  font-family: $font-mincho;
+  font-size: 14px;
+  font-weight: 600;
+  color: $white;
+  letter-spacing: 0.05em;
+}
+
+
+// ── logo ─────────────────────────────────────────
+.headerLogo {
+  cursor: pointer;
+}
+
+// ── link list ─────────────────────────────────────────
+.linkBtn {
+  width: max-content;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+
+  .statusBadge{
+    pointer-events: none;
+  }
+
+  >button,
+  .statusBadge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 6px 20px;
+    background: rgba($white, 0.05);
+    border: 1px solid rgba($white, 0.1);
+    border-radius: 5px;
+    color: rgba($white, 0.45);
+    font-size: 12px;
+    font-family: $font-serif-jp;
+    cursor: pointer;
+    transition: all 0.5s;
+    white-space: nowrap;
+  }
+
+  //_____ aoi _________________________________
+  &.aoiBtn {
+
+    >button,
+    .statusBadge {
+      background: #AE876A;
+      border: transparent 1px solid;
+      color: $white;
+
+      &:hover {
+        background: rgba($white, 0.1);
+        color: #AE876A;
+        border: #AE876A 1px solid;
+      }
+
+      @include focus-ring;
+    }
+  }
+
+
+  //_____ ren _________________________________
+  &.renBtn {
+
+    >button,
+    .statusBadge {
+      background: #769FC0;
+      border: transparent 1px solid;
+      color: $white;
+
+      &:hover {
+        background: rgba($white, 0.1);
+        color: #769FC0;
+        border: #769FC0 1px solid;
+      }
+
+      @include focus-ring;
+    }
+  }
+
+}
+
+// ── Character badge ────────────────────────────────
+.charBadge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: $radius-md;
+  border: 1px solid transparent;
+  gap: 1px;
+}
+
+// 葵（女性）
+.charBadge_aoi {
+  background: rgba($gold, 0.1);
+  border-color: rgba($gold, 0.25);
+}
+
+// 蓮（男性）
+.charBadge_ren {
+  background: rgba(100, 140, 200, 0.1);
+  border-color: rgba(100, 140, 200, 0.25);
+}
+
+.charName {
+  font-family: $font-mincho;
+  font-size: 13px;
+  font-weight: 600;
+  color: $white;
+}
+
+.charRole {
+  font-size: 9px;
+  color: rgba($white, 0.5);
+  font-family: $font-serif-jp;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+// ── Status badge ──────────────────────────────────
+// .statusBadge {
+//   display: flex;
+//   align-items: center;
+//   gap: 6px;
+//   padding: 6px 10px;
+//   background: rgba($gold, 0.12);
+//   border: 1px solid rgba($gold, 0.3);
+//   border-radius: $radius-full;
+// }
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: $green-status;
+  box-shadow: 0 0 6px $green-status;
+  transition: background 0.3s;
+}
+
+.statusDotLoading {
+  background: $gold-light;
+  box-shadow: 0 0 6px $gold-light;
+  animation: pulseDot 1.2s infinite ease-in-out;
+}
+
+.statusLabel {
+  font-family: $font-serif-jp;
+  font-size: 12px;
+  color: $white;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+// ── Voice button ──────────────────────────────────
+.voiceBtn {
+  // display: flex;
+  // align-items: center;
+  // justify-content: center;
+  // gap: 5px;
+  // padding: 6px 20px;
+  // background: rgba($white, 0.05);
+  // border: 1px solid rgba($white, 0.1);
+  // border-radius: 5px;
+  // color: rgba($white, 0.45);
+  // font-size: 12px;
+  // font-family: $font-serif-jp;
+  // cursor: pointer;
+  // transition: all 0.5s;
+  // white-space: nowrap;
+
+  &:hover {
+    background: $white;
+    border-color: #AE876A;
+    color: #AE876A;
+  }
+
+  @include focus-ring;
+}
+
+.voiceBtnOn {
+  background: $white;
+  border-color: #AE876A;
+  color: #AE876A;
+
+  &:hover {
+    background: #AE876A;
+    color: $white;
+    border-color: #AE876A;
+  }
+}
+
+// 読み上げ中のウェーブアニメーション
+.speakingWave {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+
+  span {
+    display: block;
+    width: 3px;
+    border-radius: 2px;
+    background: $gold-light;
+    animation: voiceWave 0.8s ease-in-out infinite;
+
+    &:nth-child(1) {
+      height: 6px;
+      animation-delay: 0s;
+    }
+
+    &:nth-child(2) {
+      height: 10px;
+      animation-delay: 0.15s;
+    }
+
+    &:nth-child(3) {
+      height: 6px;
+      animation-delay: 0.3s;
+    }
+  }
+}
+
+@keyframes voiceWave {
+
+  0%,
+  100% {
+    transform: scaleY(0.5);
+    opacity: 0.6;
+  }
+
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+// ── Change button ─────────────────────────────────
+.changeBtn {
+  // display: flex;
+  // align-items: center;
+  // justify-content: center;
+  // gap: 5px;
+  // padding: 6px 20px;
+  // background: rgba($white, 0.05);
+  // border: 1px solid rgba($white, 0.1);
+  // border-radius: $radius-md;
+  // color: rgba($white, 0.5);
+  // font-size: 11px;
+  // font-family: $font-serif-jp;
+  // cursor: pointer;
+  // transition: all 0.2s;
+  // white-space: nowrap;
+
+
+  // &:hover {
+  //   background: rgba($white, 0.1);
+  //   color: rgba($white, 0.8);
+  //   border-color: rgba($white, 0.2);
+  // }
+
+  @include focus-ring;
+}
+
+
+// ── CTAボタングループ ─────────────────────────────
+.ctaGroup {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  margin: 0 0 0 5%;
+}
+
+.ctaBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 20px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-family: $font-serif-jp;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  transition: all 0.5s;
+  white-space: nowrap;
+  cursor: pointer;
+
+  @include focus-ring;
+}
+
+// 来場予約：ゴールド塗りつぶし
+.ctaBtnVisit {
+  background: #4C4948;
+  color: $white;
+  border: 1px solid transparent;
+
+  &:hover {
+    background: transparent;
+    border-color: #4C4948;
+    transform: translateY(-1px);
+  }
+}
+
+// 資料請求：ゴールドアウトライン
+.ctaBtnRequest {
+  background: transparent;
+  color: #4C4948;
+  border: 1px solid #4C4948;
+
+  &:hover {
+    background: #4C4948;
+    border-color: transparent;
+    color: $white;
+    transform: translateY(-1px);
+  }
+}

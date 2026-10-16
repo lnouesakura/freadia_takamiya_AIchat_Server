@@ -1,0 +1,145 @@
+// components/admin/AdminSidebar/AdminSidebar.module.scss
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+.sidebar {
+  width: 240px;
+  max-height: 100vh;
+  background: $navy;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba($gold, 0.15);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+}
+
+.goldBar {
+  height: 2px;
+  background: linear-gradient(90deg, $gold-dark, $gold-light, $gold);
+}
+
+// ── Logo ──────────────────────────────────────────
+.logo {
+  padding: 24px 20px;
+  border-bottom: 1px solid rgba($gold, 0.12);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.emblem {
+  @include emblem(36px);
+}
+
+.logoItem{
+  width: 30%;
+
+  >img{
+    width: 100%;
+  }
+}
+
+.logoSub {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: rgb(255, 255, 255, .8);
+  font-family: $font-cormorant;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+  letter-spacing: .05em;
+}
+
+.logoMain {
+  font-size: 13px;
+  color: $white;
+  font-family: $font-mincho;
+  font-weight: 600;
+}
+
+// ── Nav ───────────────────────────────────────────
+.nav {
+  flex: 1;
+  padding: 12px 0;
+}
+
+.navLink {
+  text-decoration: none;
+  display: block;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 20px;
+  margin: 2px 8px;
+  border-radius: $radius-md;
+  color: rgba($white, 0.55);
+  border-left: 2px solid transparent;
+  transition: all 0.2s ease;
+  font-size: 13px;
+  font-family: $font-serif-jp;
+  cursor: pointer;
+
+  &:hover {
+    color: rgba($white, 0.85);
+    background: rgba($white, 0.05);
+  }
+}
+
+.navItemActive {
+  color: $gold-light;
+  background: rgba($gold, 0.12);
+  border-left-color: $gold;
+
+  .navIcon {
+    opacity: 1;
+  }
+}
+
+.navIcon {
+  opacity: 0.7;
+  display: flex;
+  align-items: center;
+}
+
+// ── Footer ────────────────────────────────────────
+.footer {
+  padding: 16px 20px;
+  border-top: 1px solid rgba($gold, 0.12);
+}
+
+.userInfo {
+  margin-bottom: 12px;
+}
+
+.userName {
+  font-size: 12px;
+  color: $white;
+  font-family: $font-serif-jp;
+}
+
+.userEmail {
+  font-size: 11px;
+  color: rgba($white, 0.4);
+  margin-top: 2px;
+}
+
+.logoutBtn {
+  width: 100%;
+  padding: 8px;
+  background: rgba($white, 0.05);
+  border: 1px solid rgba($white, 0.1);
+  border-radius: $radius-sm;
+  color: rgba($white, 0.5);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: $font-serif-jp;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba($white, 0.1);
+    color: rgba($white, 0.8);
+  }
+}

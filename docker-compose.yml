@@ -1,0 +1,29 @@
+# ローカル開発用の PostgreSQL
+#
+#   docker compose up -d     起動
+#   docker compose ps        状態確認
+#   docker compose down      停止（データは残る）
+#   docker compose down -v   停止してデータも削除（作り直したいとき）
+#
+# 本番（Dokploy）とは完全に別物の、自分専用のデータベースです。
+# ここで何をしても本番には影響しません。
+#
+# ポートは 5433 で公開しています。MAMP など他の PostgreSQL と
+# ぶつからないようにするためです。
+
+services:
+  db:
+    image: postgres:16
+    container_name: freadia-local-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: freadia
+      POSTGRES_PASSWORD: freadia
+      POSTGRES_DB: freadia
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

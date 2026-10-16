@@ -1,0 +1,43 @@
+// components/admin/StatCard/StatCard.module.scss
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+.card {
+  @include card;
+  // padding: 20px 24px;
+  width: 45%;
+  border: none;
+  box-shadow: none;
+  padding: 15px 1%;
+}
+
+.cardAccent {
+  border-color: rgba($gold, 0.4);
+}
+
+.label {
+  font-size: 11px;
+  color: $stone;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+  font-family: $font-serif-jp;
+}
+
+.value {
+  font-size: 28px;
+  font-weight: 700;
+  color: $charcoal;
+  font-family: $font-mincho;
+  line-height: 1;
+}
+
+.valueAccent {
+  color: $gold;
+}
+
+.sub {
+  font-size: 11px;
+  color: $stone;
+  margin-top: 4px;
+  font-family: $font-serif-jp;
+}

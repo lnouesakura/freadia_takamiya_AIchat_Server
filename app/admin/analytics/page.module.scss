@@ -1,0 +1,749 @@
+// app/admin/analytics/page.module.scss
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+.shell {
+  padding: 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.stateMsg {
+  padding: 60px;
+  text-align: center;
+  color: $stone;
+  font-family: $font-serif-jp;
+}
+
+.kpiGrid {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.typeCard{
+  @include card;
+  padding: 24px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 4%;
+
+  .cardTitle,
+  .cardNote
+  {
+    width: 90%;
+    display: block;
+    margin: 0 auto;
+  }
+
+  .cardGraph{
+    width: 38%;
+  }
+}
+
+.card {
+  @include card;
+  padding: 24px;
+  // width: 48%;
+}
+
+.cardFull {
+  margin-bottom: 20px;
+}
+
+.cardTitle {
+  @include section-title;
+  margin-bottom: 4px;
+}
+
+.cardNote {
+  font-size: 11px;
+  color: $stone;
+  font-family: $font-serif-jp;
+  margin-bottom: 16px;
+}
+
+.trendHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.trendLegend {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: $stone;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: $font-serif-jp;
+}
+
+.legendBarSample {
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  background: rgba($gold, 0.4);
+  border-radius: 2px;
+}
+
+.legendLineSample {
+  display: inline-block;
+  width: 12px;
+  height: 2px;
+  background: $gold;
+  border-radius: 2px;
+}
+
+.bottomGrid {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  flex-wrap: wrap;
+  // grid-template-columns: 1fr 1fr;
+  gap: 20px;
+
+  .card{
+    width: 48%;
+  }
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.donutRow {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.donutWrap {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  flex-shrink: 0;
+}
+
+.donutSvg {
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+}
+
+.donutLabel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: $font-mincho;
+  font-size: 18px;
+  font-weight: 700;
+  color: $charcoal;
+}
+
+.donutStats {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.donutStatRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.donutStatHead {
+  display: flex;
+  justify-content: space-between;
+}
+
+.donutStatLabel {
+  font-size: 12px;
+  color: $charcoal;
+  font-family: $font-serif-jp;
+}
+
+.donutStatValue {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.donutTrack {
+  height: 6px;
+  background: $cream-dark;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.donutFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+.donutTip {
+  padding: 10px 12px;
+  background: rgba($gold, 0.06);
+  border-radius: $radius-md;
+  border: 1px solid rgba($gold, 0.15);
+  font-size: 12px;
+  color: $charcoal-light;
+  font-family: $font-serif-jp;
+  line-height: 1.6;
+}
+
+.cardInsight {
+  @include navy-gradient;
+  border: 1px solid rgba($gold, 0.25);
+}
+
+.insightEyebrow {
+  font-family: $font-cormorant;
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  color: $gold;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.insightTitle {
+  font-family: $font-mincho;
+  font-size: 15px;
+  font-weight: 600;
+  color: $white;
+  margin-bottom: 14px;
+}
+
+.insightList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.insightTip {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  color: rgba($white, 0.8);
+  font-family: $font-serif-jp;
+  line-height: 1.6;
+}
+
+.insightDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: $gold;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+// ── 顧客ヒアリング分析 ───────────────────────────
+.customerAnalysisSection {
+  margin-top: 28px;
+}
+
+.customerAnalysisHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.customerAnalysisDesc {
+  font-size: 12px;
+  color: $stone;
+  font-family: $font-serif-jp;
+  margin-top: 4px;
+}
+
+.analyzedMeta {
+  color: $stone;
+  font-size: 11px;
+}
+
+.analyzeBtn {
+  padding: 10px 20px;
+  @include navy-gradient;
+  border: none;
+  border-radius: $radius-md;
+  color: $white;
+  font-size: 13px;
+  font-family: $font-serif-jp;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+
+  &:hover:not(:disabled) {
+    opacity: 0.85;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.analyzeBtnLoading {
+  background: rgba($stone, 0.3) !important;
+  cursor: not-allowed;
+}
+
+.analyzeEmpty {
+  @include card;
+  padding: 40px;
+  text-align: center;
+  color: $stone;
+  font-family: $font-serif-jp;
+  font-size: 13px;
+}
+
+.analysisSummary {
+  @include card;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border-left: 3px solid $gold;
+}
+
+.analysisSummaryIcon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.analysisSummary p {
+  font-size: 13px;
+  color: $charcoal;
+  font-family: $font-serif-jp;
+  line-height: 1.8;
+  margin: 0;
+}
+
+.analysisGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.analysisCard {
+  @include card;
+  padding: 20px;
+}
+
+.analysisCardTitle {
+  font-family: $font-mincho;
+  font-size: 13px;
+  font-weight: 600;
+  color: $charcoal;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid $cream-dark;
+}
+
+.analysisItems {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.analysisItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.analysisItemHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.analysisItemLabel {
+  font-size: 12px;
+  color: $charcoal;
+  font-family: $font-serif-jp;
+}
+
+.analysisItemPct {
+  font-size: 12px;
+  font-weight: 600;
+  color: $gold-dark;
+}
+
+.analysisBar {
+  height: 6px;
+  background: $cream-dark;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.analysisBarFill {
+  height: 100%;
+  background: linear-gradient(90deg, $gold-dark, $gold-light);
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+.analysisItemDetail {
+  font-size: 11px;
+  color: $stone;
+  font-family: $font-serif-jp;
+  line-height: 1.5;
+}
+
+.analysisInsight {
+  font-size: 12px;
+  color: $charcoal-light;
+  font-family: $font-serif-jp;
+  line-height: 1.7;
+  padding: 10px 12px;
+  background: rgba($gold, 0.05);
+  border-radius: $radius-md;
+  border: 1px solid rgba($gold, 0.15);
+  margin-top: 4px;
+}
+
+.recommendationsCard {
+  @include navy-gradient;
+  border-radius: $radius-lg;
+  border: 1px solid rgba($gold, 0.25);
+  padding: 24px;
+}
+
+.recommendationsTitle {
+  font-family: $font-mincho;
+  font-size: 14px;
+  font-weight: 600;
+  color: $white;
+  margin-bottom: 16px;
+}
+
+.recommendationsList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recommendationItem {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+
+  p {
+    font-size: 13px;
+    color: rgba($white, 0.85);
+    font-family: $font-serif-jp;
+    line-height: 1.7;
+    margin: 0;
+  }
+}
+
+.recommendationNum {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba($gold, 0.3);
+  border: 1px solid rgba($gold, 0.5);
+  color: $gold-light;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-family: $font-mincho;
+  font-weight: 600;
+}
+
+// ── トレンド期間切り替え ──────────────────────────
+.periodBtns {
+  display: flex;
+  gap: 4px;
+}
+
+.periodBtn {
+  padding: 4px 12px;
+  border: 1px solid $stone-light;
+  border-radius: $radius-full;
+  background: $white;
+  color: $stone;
+  font-size: 11px;
+  font-family: $font-serif-jp;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    border-color: $gold;
+    color: $gold-dark;
+  }
+}
+
+.periodBtnActive {
+  background: $navy;
+  border-color: $navy;
+  color: $white;
+}
+
+.cardTitleJp {
+  font-size: 11px;
+  color: $stone;
+  font-family: $font-serif-jp;
+  margin-top: 2px;
+}
+
+// ── イベントメモ（タイムライン） ──────────────────
+.memoAddBtn {
+  padding: 6px 14px;
+  background: $white;
+  border: 1px solid rgba(#E05C5C, 0.35);
+  border-radius: $radius-full;
+  color: #E05C5C;
+  font-size: 12px;
+  font-family: $font-serif-jp;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+
+  &:hover {
+    background: rgba(#E05C5C, 0.05);
+  }
+}
+
+.memoInlineForm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: rgba(#E05C5C, 0.03);
+  border: 1px solid rgba(#E05C5C, 0.12);
+  border-radius: $radius-md;
+  margin-bottom: 12px;
+}
+
+.memoInlineInput {
+  padding: 7px 10px;
+  border: 1px solid $stone-light;
+  border-radius: $radius-md;
+  font-size: 12px;
+  font-family: $font-serif-jp;
+  color: $charcoal;
+  background: $white;
+  outline: none;
+
+  &:focus {
+    border-color: #E05C5C;
+  }
+}
+
+.memoInlineInputWide {
+  flex: 1;
+  min-width: 140px;
+}
+
+.memoInlineSubmit {
+  padding: 7px 16px;
+  background: #E05C5C;
+  border: none;
+  border-radius: $radius-md;
+  color: $white;
+  font-size: 12px;
+  font-family: $font-serif-jp;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    opacity: 0.85;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.memoInlineCancel {
+  padding: 7px 10px;
+  background: $white;
+  border: 1px solid $stone-light;
+  border-radius: $radius-md;
+  color: $stone;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: $charcoal-light;
+  }
+}
+
+.legendMemoDot {
+  display: inline-block;
+  width: 10px;
+  height: 2px;
+  background: #E05C5C;
+  border-radius: 1px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.trendHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.timelineList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-left: 2px solid $cream-dark;
+  margin-left: 8px;
+  padding-left: 20px;
+  padding-top: 10px;
+  margin-top: 8px;
+}
+
+.timelineItem {
+  position: relative;
+  padding-bottom: 16px;
+
+  &:last-child {
+    padding-bottom: 0;
+  }
+}
+
+.timelineDot {
+  position: absolute;
+  left: -26px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #E05C5C;
+  box-shadow: 0 0 0 2px rgba(#E05C5C, 0.2);
+}
+
+.timelineContent {
+  background: $white;
+  border-radius: $radius-md;
+  border: 1px solid $cream-dark;
+  padding: 10px 14px;
+  box-shadow: $shadow-sm;
+}
+
+.timelineItemHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.timelineDate {
+  font-size: 11px;
+  color: $stone;
+  font-family: $font-serif-jp;
+}
+
+.timelineDeleteBtn {
+  background: none;
+  border: none;
+  color: rgba($stone, 0.5);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+
+  &:hover {
+    color: #E05C5C;
+  }
+}
+
+.timelineTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: $charcoal;
+  font-family: $font-serif-jp;
+  margin-bottom: 2px;
+}
+
+.timelineBody {
+  font-size: 12px;
+  color: $charcoal-light;
+  font-family: $font-serif-jp;
+  line-height: 1.6;
+}
+
+.timelineEmpty {
+  padding: 24px;
+  text-align: center;
+  color: $stone;
+  font-family: $font-serif-jp;
+  font-size: 13px;
+}
+
+/* タイプ割合の一覧 */
+.typeList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.typeRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: $font-serif-jp;
+  font-size: 12px;
+}
+
+.typeDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.typeName {
+  color: $charcoal;
+  flex: 1;
+  min-width: 0;
+}
+
+.typeCount {
+  color: $stone;
+}
+
+.typeRatio {
+  color: $gold-dark;
+  font-family: $font-cormorant, serif;
+  font-size: 14px;
+  min-width: 42px;
+  text-align: right;
+}
