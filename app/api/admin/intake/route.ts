@@ -22,10 +22,12 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { loadSlots, describeSlots, extractJson, callClaude } from '@/lib/knowledgeSlots';
 import { SECTION_KEYS, describeSections, parseSections } from '@/lib/propertySections';
+import { splitPdfForApi } from '@/lib/pdfSplit';
 import * as XLSX from 'xlsx';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120; // PDFの読み取りは時間がかかる
+// 大きなPDFはページごとに分けて読み取るため、呼び出しが複数回になります
+export const maxDuration = 300;
 
 /** 読み取ったテキストの上限。これを超える資料は前半だけを振り分けに使う */
 const MAX_TEXT = 60000;
@@ -87,9 +89,28 @@ function xlsxToText(base64: string): string {
   }).join('\n\n').trim();
 }
 
-/** 第1段：PDFを画像として読み、書かれている内容をテキストに起こす */
+/**
+ * 第1段：PDFを画像として読み、書かれている内容をテキストに起こす。
+ *
+ * Anthropic API は document ブロックを base64 の文字数で判定し、
+ * 32MB を超えると弾きます。base64は元の約1.34倍になるため、
+ * 実ファイルでは約24MBが上限です。
+ * パンフレットは画像が重く、これを超えることが珍しくないので、
+ * 超える場合はページ単位に分けて読み取り、結果をつなぎます。
+ */
 async function pdfToText(base64: string, mediaType: string, fileName: string): Promise<string> {
-  const instruction = `このファイル（${fileName}）に書かれている内容を、要約・省略せずにそのままテキストに起こしてください。
+  const buf = Buffer.from(base64, 'base64');
+  const chunks = await splitPdfForApi(buf, base64);
+  const type = mediaType || 'application/pdf';
+
+  const parts: string[] = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const c = chunks[i];
+    const where = chunks.length > 1
+      ? `（このPDFは${chunks.length}分割して読み取っています。今回は${c.fromPage}〜${c.toPage}ページ目です）`
+      : '';
+
+    const instruction = `このファイル（${fileName}）に書かれている内容を、要約・省略せずにそのままテキストに起こしてください。${where}
 
 - 見出し・表・箇条書きの構造は保ってください
 - 表は、見出しと値の対応が分かる形で書き出してください
@@ -97,16 +118,22 @@ async function pdfToText(base64: string, mediaType: string, fileName: string): P
 - 推測で補わないでください。読み取れない箇所は「（判読不能）」と書いてください
 - 説明文や前置きは付けず、内容だけを出力してください`;
 
-  return callClaude(
-    [
-      {
-        type: 'document',
-        source: { type: 'base64', media_type: mediaType || 'application/pdf', data: base64 },
-      },
-      { type: 'text', text: instruction },
-    ],
-    { maxTokens: 16000 },
-  );
+    const text = await callClaude(
+      [
+        { type: 'document', source: { type: 'base64', media_type: type, data: c.base64 } },
+        { type: 'text', text: instruction },
+      ],
+      { maxTokens: 16000 },
+    );
+
+    parts.push(
+      chunks.length > 1
+        ? `# ${c.fromPage}〜${c.toPage}ページ\n${text.trim()}`
+        : text.trim(),
+    );
+  }
+
+  return parts.join('\n\n');
 }
 
 /** 第2段の指示文 */

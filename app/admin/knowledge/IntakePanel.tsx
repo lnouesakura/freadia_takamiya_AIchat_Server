@@ -302,8 +302,13 @@ export default function IntakePanel({ onApplied }: { onApplied: () => void }) {
 
 /* ───────────── ファイル ───────────── */
 
+/** これを超えるPDFは、サーバー側でページごとに分けて読み取ります */
+const SPLIT_THRESHOLD = 24 * 1024 * 1024;
+
 function FileInput({ busy, onSubmit }: { busy: boolean; onSubmit: (p: object) => void }) {
   const [name, setName] = useState('');
+  const [size, setSize] = useState(0);
+  const [isPdf, setIsPdf] = useState(false);
   const [pending, setPending] = useState<{ base64: string; mediaType: string } | null>(null);
 
   const read = (file: File) => {
@@ -313,9 +318,13 @@ function FileInput({ busy, onSubmit }: { busy: boolean; onSubmit: (p: object) =>
       const result = String(reader.result);
       setPending({ base64: result.split(',')[1] || '', mediaType: file.type || '' });
       setName(file.name);
+      setSize(file.size);
+      setIsPdf(file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
     };
     reader.readAsDataURL(file);
   };
+
+  const willSplit = isPdf && size > SPLIT_THRESHOLD;
 
   return (
     <div className={styles.inputBlock}>
@@ -329,8 +338,21 @@ function FileInput({ busy, onSubmit }: { busy: boolean; onSubmit: (p: object) =>
         <span className={styles.uploadHint}>pdf / xlsx / csv / md / txt</span>
         <input type="file" accept=".pdf,.xlsx,.xls,.csv,.tsv,.md,.txt"
           onChange={(e) => e.target.files?.[0] && read(e.target.files[0])} />
-        {name && <span className={styles.fileName}>{name}</span>}
+        {name && (
+          <span className={styles.fileName}>
+            {name}（{(size / 1024 / 1024).toFixed(1)}MB）
+          </span>
+        )}
       </label>
+
+      {willSplit && (
+        <p className={styles.blockNote}>
+          24MBを超えるPDFのため、ページごとに分けて読み取ります。
+          そのぶん時間がかかります（数分かかることがあります）。
+          画像の多いパンフレットでは、よくあることです。
+        </p>
+      )}
+
       <button type="button" className={styles.primaryBtn} disabled={busy || !pending}
         onClick={() => pending && onSubmit({ kind: 'file', ...pending, fileName: name })}>
         {busy ? '読み取り中...' : '読み取る'}
