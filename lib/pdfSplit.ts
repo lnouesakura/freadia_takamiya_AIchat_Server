@@ -24,8 +24,22 @@ export const B64_HARD_LIMIT = 33_554_432;
 /** 1チャンクの上限（base64の文字数）。余裕を持たせる */
 export const B64_SAFE_LIMIT = 24 * 1024 * 1024;
 
-/** 1リクエストあたりのページ上限 */
+/** 1リクエストあたりのページ上限（Anthropic側の制限） */
 export const MAX_PAGES_PER_CHUNK = 100;
+
+/**
+ * 「重いページ」と見なす目安（1ページあたりのバイト数）。
+ *
+ * 画像の多いページは、サイズが上限内でも読み取りに時間がかかります。
+ * 1回の呼び出しに詰め込みすぎると、生成が300秒を超えて
+ * Node の fetch に打ち切られます（fetch failed の原因）。
+ * ストリーミングで打ち切られないようにしたうえで、
+ * 重い資料は少ないページ数に分けて、1回あたりを短く保ちます。
+ */
+const HEAVY_PAGE_BYTES = 500 * 1024;
+
+/** 重いページのときの、1チャンクあたりのページ数 */
+const HEAVY_PAGES_PER_CHUNK = 4;
 
 /** 実ファイルで扱える目安の上限（バイト） */
 export const REAL_SIZE_LIMIT = Math.floor((B64_HARD_LIMIT / 4) * 3);
@@ -72,9 +86,14 @@ export async function splitPdfForApi(buf: Buffer, originalBase64: string): Promi
   }
 
   const pageCount = src.getPageCount();
+  const heavy = pageCount > 0 && buf.length / pageCount > HEAVY_PAGE_BYTES;
 
-  // 上限内かつページ数も収まっていれば、何もしない
-  if (whole <= B64_SAFE_LIMIT && pageCount <= MAX_PAGES_PER_CHUNK) {
+  // 大きさもページ数も収まっていて、1ページが重くもなければ、何もしない
+  if (
+    whole <= B64_SAFE_LIMIT &&
+    pageCount <= MAX_PAGES_PER_CHUNK &&
+    !(heavy && pageCount > HEAVY_PAGES_PER_CHUNK)
+  ) {
     return [{ base64: originalBase64, fromPage: 1, toPage: pageCount, b64Length: whole }];
   }
 
@@ -100,14 +119,15 @@ export async function splitPdfForApi(buf: Buffer, originalBase64: string): Promi
     );
   }
 
-  // 入るところまで詰める
+  // 入るところまで詰める。重い資料は1チャンクのページ数も抑える
+  const pageCap = heavy ? HEAVY_PAGES_PER_CHUNK : MAX_PAGES_PER_CHUNK;
   const groups: number[][] = [];
   let current: number[] = [];
   let currentBytes = 0;
   for (let i = 0; i < pageCount; i++) {
     const next = currentBytes + pageBytes[i];
     const overSize = base64Length(next) > B64_SAFE_LIMIT;
-    const overPages = current.length >= MAX_PAGES_PER_CHUNK;
+    const overPages = current.length >= pageCap;
     if (current.length > 0 && (overSize || overPages)) {
       groups.push(current);
       current = [];
