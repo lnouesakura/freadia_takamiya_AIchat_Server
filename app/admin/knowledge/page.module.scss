@@ -183,7 +183,7 @@
   display: flex; flex-direction: column; gap: 12px; align-items: flex-start;
 
   > .note { margin: 0; }
-  > .upload { flex: none; width: 100%; max-width: 420px; }
+  > .upload { flex: none; width: 100%; }
   > .search { width: 100%; }
 }
 
@@ -267,6 +267,32 @@
 .micActive {
   background: $charcoal; color: $white; border-color: $charcoal;
   &:hover:not(:disabled) { color: $white; }
+}
+
+// ── 取り込む：進行度 ──────────────────────────
+.progressBox {
+  @include card; padding: 16px 20px; margin-top: 16px;
+}
+.progressHead {
+  display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px;
+}
+.progressMsg {
+  flex: 1; font-size: 12px; color: $charcoal; font-family: $font-serif-jp;
+}
+.progressPct {
+  font-size: 18px; color: $charcoal;
+  font-family: $font-cormorant; letter-spacing: .02em;
+}
+.progressTrack {
+  display: block; height: 5px; border-radius: $radius-full;
+  background: rgba($stone, .18); overflow: hidden;
+}
+.progressFill {
+  display: block; height: 100%; border-radius: $radius-full;
+  background: $gold; transition: width .4s ease;
+}
+.progressNote {
+  margin: 10px 0 0; font-size: 10px; color: $stone-light; font-family: $font-serif-jp;
 }
 
 // ── 取り込む：振り分け結果 ────────────────────

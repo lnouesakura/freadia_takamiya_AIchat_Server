@@ -147,7 +147,13 @@ const CALL_TIMEOUT_MS = 15 * 60 * 1000;
  */
 export async function callClaude(
   content: unknown,
-  opts: { maxTokens?: number; system?: string; retries?: number } = {},
+  opts: {
+    maxTokens?: number;
+    system?: string;
+    retries?: number;
+    /** 受信した文字数を知らせる。進行度の表示に使う */
+    onText?: (chars: number) => void;
+  } = {},
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY が設定されていません');
@@ -165,7 +171,7 @@ export async function callClaude(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      return await streamOnce(apiKey, body);
+      return await streamOnce(apiKey, body, opts.onText);
     } catch (e) {
       lastError = e;
       // 送信しきれなかった類のものだけ、1度だけやり直す
@@ -180,7 +186,11 @@ export async function callClaude(
 }
 
 /** 1回分の送信と、ストリームの読み取り */
-async function streamOnce(apiKey: string, body: string): Promise<string> {
+async function streamOnce(
+  apiKey: string,
+  body: string,
+  onText?: (chars: number) => void,
+): Promise<string> {
   let res: Response;
   try {
     res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -209,12 +219,14 @@ async function streamOnce(apiKey: string, body: string): Promise<string> {
   let buffer = '';
   let text = '';
   let stopReason = '';
+  let grew = false;
 
   try {
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
+      grew = false;
 
       // 行単位で処理する。最後の行は途中の可能性があるので残す
       const lines = buffer.split('\n');
@@ -243,11 +255,15 @@ async function streamOnce(apiKey: string, body: string): Promise<string> {
         }
         if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') {
           text += ev.delta.text || '';
+          grew = true;
         }
         if (ev.type === 'message_delta' && ev.delta?.stop_reason) {
           stopReason = ev.delta.stop_reason;
         }
       }
+
+      // 受信量を知らせる。呼び出し側が進行度の表示に使う
+      if (grew && onText) onText(text.length);
     }
   } catch (e) {
     console.error('[callClaude] 応答の受信中に失敗:', e);

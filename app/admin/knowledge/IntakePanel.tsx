@@ -66,6 +66,8 @@ export default function IntakePanel({ onApplied }: { onApplied: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [applied, setApplied] = useState('');
+  /** 読み取り中の進行度。サーバーから送られてきた値をそのまま表示する */
+  const [progress, setProgress] = useState<{ percent: number; message: string } | null>(null);
 
   /** マトリクス候補を取り込む（同じスロットは後から来たもので上書き） */
   const mergeMatrix = (list: MatrixCandidate[]) => {
@@ -84,26 +86,72 @@ export default function IntakePanel({ onApplied }: { onApplied: () => void }) {
     });
   };
 
-  /** 読み取り（ファイル・URL） */
+  /**
+   * 読み取り（ファイル・URL・テキスト）
+   *
+   * 読み取りは数分かかることがあるため、サーバーから進行度が
+   * 少しずつ送られてきます（Server-Sent Events）。
+   * 最後に type:'result' が届いたら、それが結果です。
+   */
   const callIntake = async (payload: object) => {
     setBusy(true);
     setError('');
     setApplied('');
+    setProgress({ percent: 0, message: '資料を送信しています' });
     try {
       const res = await fetch('/api/admin/intake', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const d = await res.json();
-      if (!res.ok) {
+
+      // 認証切れなどで、ストリームではない応答が返ることがある
+      if (!res.ok || !res.body ||
+          !(res.headers.get('Content-Type') || '').includes('text/event-stream')) {
+        const d = await res.json().catch(() => ({}));
         setError(d.error || '読み取りに失敗しました');
         return;
       }
 
-      mergeMatrix(d.matrix || []);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let d: Record<string, unknown> | null = null;
+      let failed = '';
 
-      const incoming: SectionCandidate[] = d.sections || [];
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue;
+          const body = line.slice(5).trim();
+          if (!body) continue;
+          let ev: Record<string, unknown>;
+          try {
+            ev = JSON.parse(body);
+          } catch {
+            continue;
+          }
+          if (ev.type === 'progress') {
+            setProgress({ percent: Number(ev.percent) || 0, message: String(ev.message || '') });
+          } else if (ev.type === 'error') {
+            failed = String(ev.error || '読み取りに失敗しました');
+          } else if (ev.type === 'result') {
+            d = ev;
+          }
+        }
+      }
+
+      if (failed) { setError(failed); return; }
+      if (!d) { setError('読み取りが途中で終わりました。もう一度お試しください'); return; }
+
+      mergeMatrix((d.matrix as MatrixCandidate[]) || []);
+
+      const incoming = (d.sections as SectionCandidate[]) || [];
       setSections((prev) => {
         const map = new Map(prev.map((s) => [s.section, s]));
         incoming.forEach((s) => map.set(s.section, s));
@@ -121,18 +169,19 @@ export default function IntakePanel({ onApplied }: { onApplied: () => void }) {
         return next;
       });
 
-      if (d.doc) { setDoc(d.doc); setDocOn(true); }
-      if (d.categories) setCategories(d.categories);
-      setNotes((prev) => [...prev, ...(d.notes || [])]);
+      if (d.doc) { setDoc(d.doc as DocCandidate); setDocOn(true); }
+      if (d.categories) setCategories(d.categories as { id: string; label: string }[]);
+      setNotes((prev) => [...prev, ...((d.notes as string[]) || [])]);
 
-      const total = (d.matrix?.length || 0) + (d.sections?.length || 0);
-      if (!total) {
+      const matrixCount = ((d.matrix as unknown[]) || []).length;
+      if (matrixCount + incoming.length === 0) {
         setError('この資料からは、振り分けられる内容が見つかりませんでした。参考資料としてだけ保管できます');
       }
     } catch {
       setError('通信に失敗しました');
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   };
 
@@ -224,6 +273,21 @@ export default function IntakePanel({ onApplied }: { onApplied: () => void }) {
       {source === 'url' && <UrlInput busy={busy} onSubmit={callIntake} />}
       {source === 'talk' && (
         <TalkInput draft={matrix} onSlots={mergeMatrix} onError={setError} />
+      )}
+
+      {progress && (
+        <div className={styles.progressBox}>
+          <div className={styles.progressHead}>
+            <span className={styles.progressMsg}>{progress.message}</span>
+            <span className={styles.progressPct}>{progress.percent}%</span>
+          </div>
+          <span className={styles.progressTrack}>
+            <span className={styles.progressFill} style={{ width: `${progress.percent}%` }} />
+          </span>
+          <p className={styles.progressNote}>
+            画面を開いたままお待ちください。別のタブへ移っても読み取りは続きます。
+          </p>
+        </div>
       )}
 
       {error && <div className={styles.errorBox}>{error}</div>}

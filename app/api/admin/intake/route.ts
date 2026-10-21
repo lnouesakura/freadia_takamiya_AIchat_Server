@@ -98,14 +98,31 @@ function xlsxToText(base64: string): string {
  * パンフレットは画像が重く、これを超えることが珍しくないので、
  * 超える場合はページ単位に分けて読み取り、結果をつなぎます。
  */
-async function pdfToText(base64: string, mediaType: string, fileName: string): Promise<string> {
+async function pdfToText(
+  base64: string,
+  mediaType: string,
+  fileName: string,
+  report: (percent: number, message: string) => void,
+): Promise<string> {
+  report(2, 'PDFを確認しています');
+
   const buf = Buffer.from(base64, 'base64');
   const chunks = await splitPdfForApi(buf, base64);
   const type = mediaType || 'application/pdf';
 
+  const total = chunks.length;
+  const span = (READ_TO - READ_FROM) / total; // 1チャンクに割り当てる進行度の幅
+  const READ_TOKENS = 16000;
+
   const parts: string[] = [];
   for (let i = 0; i < chunks.length; i++) {
     const c = chunks[i];
+    const base = READ_FROM + span * i;
+    const label = total > 1
+      ? `${c.fromPage}〜${c.toPage}ページ目を読み取っています（${i + 1}/${total}）`
+      : 'PDFを読み取っています';
+    report(base, label);
+
     const where = chunks.length > 1
       ? `（このPDFは${chunks.length}分割して読み取っています。今回は${c.fromPage}〜${c.toPage}ページ目です）`
       : '';
@@ -123,7 +140,14 @@ async function pdfToText(base64: string, mediaType: string, fileName: string): P
         { type: 'document', source: { type: 'base64', media_type: type, data: c.base64 } },
         { type: 'text', text: instruction },
       ],
-      { maxTokens: 16000 },
+      {
+        maxTokens: READ_TOKENS,
+        onText: (chars) => {
+          // 受け取った文字数から、このチャンクの進み具合を見積もる
+          const ratio = Math.min(chars / (READ_TOKENS * CHARS_PER_TOKEN), 0.95);
+          report(base + span * ratio, label);
+        },
+      },
     );
 
     parts.push(
@@ -178,18 +202,197 @@ ${sectionList}
 }`;
 }
 
+/** 進行度の通知。percent は0〜100 */
+type Report = (percent: number, message: string) => void;
+
+/** 読み取り（第1段）に割り当てる進行度の範囲 */
+const READ_FROM = 5;
+const READ_TO = 80;
+
+/** 1トークンあたりの文字数の目安。進行度の分母に使う */
+const CHARS_PER_TOKEN = 2.5;
+
+type Payload = {
+  ok: true;
+  sourceLabel: string;
+  matrix: unknown[];
+  sections: unknown[];
+  doc: unknown;
+  categories: { id: string; label: string }[];
+  notes: string[];
+};
+
+type Body = {
+  kind?: 'file' | 'url' | 'text';
+  base64?: string;
+  mediaType?: string;
+  fileName?: string;
+  url?: string;
+  text?: string;
+};
+
+/**
+ * 素材を読み取り、3つの行き先へ振り分ける。
+ * 時間がかかるため、途中の進行度を report で知らせます。
+ */
+async function runIntake(
+  body: Body,
+  slots: Awaited<ReturnType<typeof loadSlots>>,
+  report: Report,
+): Promise<Payload> {
+  // ── 第1段：素材をテキストにする ──
+  let text = '';
+  let sourceLabel = '';
+
+  if (body.kind === 'file') {
+    if (!body.base64) throw new Error('ファイルがありません');
+    const name = body.fileName || '';
+    const lower = name.toLowerCase();
+    const mediaType = body.mediaType || '';
+    sourceLabel = name || 'アップロードしたファイル';
+
+    if (lower.endsWith('.pdf') || mediaType === 'application/pdf') {
+      text = await pdfToText(body.base64, mediaType, name, report);
+    } else if (
+      lower.endsWith('.xlsx') || lower.endsWith('.xls') ||
+      mediaType.includes('spreadsheet') || mediaType.includes('excel')
+    ) {
+      report(READ_FROM, '表を読み取っています');
+      text = xlsxToText(body.base64);
+    } else {
+      // csv / tsv / md / txt
+      report(READ_FROM, 'ファイルを読み取っています');
+      text = Buffer.from(body.base64, 'base64').toString('utf-8');
+    }
+  } else if (body.kind === 'url') {
+    const url = (body.url || '').trim();
+    if (!isSafeUrl(url)) {
+      throw new Error('このURLは読み取れません。http(s) の外部サイトのURLを指定してください');
+    }
+    report(READ_FROM, 'ページを取得しています');
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FreadiaBot/1.0)' },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) throw new Error(`ページを取得できませんでした（HTTP ${res.status}）`);
+    text = htmlToText(await res.text());
+    if (text.trim().length < 50) {
+      throw new Error(
+        'このページから本文を取得できませんでした。JavaScriptで描画されるページの可能性があります',
+      );
+    }
+    sourceLabel = url;
+  } else {
+    report(READ_FROM, 'テキストを読み取っています');
+    text = body.text || '';
+    sourceLabel = body.fileName || '入力したテキスト';
+  }
+
+  text = text.trim();
+  if (!text) throw new Error('内容を取得できませんでした');
+
+  // ── 第2段：3つの行き先へ振り分ける ──
+  report(READ_TO, '情報の行き先を判定しています');
+
+  const cats: { id: string; label: string; hint: string | null }[] =
+    await prisma.knowledgeCategory.findMany({
+      select: { id: true, label: true, hint: true },
+      orderBy: [{ sort: 'asc' }, { createdAt: 'asc' }],
+    });
+  const catList = cats.length
+    ? cats.map((c) => `  id:"${c.id}" ${c.label}${c.hint ? `（${c.hint}）` : ''}`).join('\n')
+    : '  （分類が未登録です。docCategory は空にしてください）';
+
+  const prompt = [
+    routingInstruction(describeSlots(slots), describeSections()),
+    '',
+    '■ 参考資料の分類候補',
+    catList,
+    '',
+    `【資料：${sourceLabel}】`,
+    text.slice(0, MAX_TEXT),
+  ].join('\n');
+
+  const ROUTE_TOKENS = 8000;
+  const raw = await callClaude(prompt, {
+    maxTokens: ROUTE_TOKENS,
+    onText: (chars) => {
+      const ratio = Math.min(chars / (ROUTE_TOKENS * CHARS_PER_TOKEN), 0.95);
+      report(READ_TO + (100 - READ_TO) * ratio, '情報の行き先を判定しています');
+    },
+  });
+
+  const parsed = extractJson<Routed>(raw);
+  if (!parsed) {
+    console.error('[intake] JSONを取り出せませんでした:', raw.slice(0, 500));
+    throw new Error('AIの応答を読み取れませんでした。もう一度お試しください');
+  }
+
+  // 行き先1：存在しないコードや範囲外の index を落とす
+  const valid = new Map(slots.map((s) => [`${s.code}#${s.index}`, s]));
+  const matrix = (parsed.matrix || [])
+    .filter((x) => x && x.value && String(x.value).trim())
+    .map((x) => ({ ...x, index: Number(x.index) }))
+    .filter((x) => valid.has(`${x.code}#${x.index}`))
+    .map((x) => {
+      const s = valid.get(`${x.code}#${x.index}`)!;
+      return {
+        code: x.code,
+        index: x.index,
+        title: s.title,
+        label: s.label,
+        existing: s.value,
+        value: String(x.value).trim(),
+        source: x.source || sourceLabel,
+      };
+    });
+
+  // 行き先2：既存の本文を添えて、上書きか追記かを画面で選べるようにする
+  const property = await prisma.propertyInfo.findFirst();
+  const current = parseSections(property?.content || '');
+  const sections = (parsed.property || [])
+    .filter((x) => x && x.section && x.value && String(x.value).trim())
+    .filter((x) => SECTION_KEYS.includes(x.section))
+    .map((x) => ({
+      section: x.section,
+      existing: current[x.section] || '',
+      value: String(x.value).trim(),
+    }));
+
+  // 行き先3：分類が合わなければ先頭の分類にしておく（画面で変更できる）
+  const docCategory = cats.find((c) => c.id === parsed.docCategory)?.id || cats[0]?.id || '';
+
+  return {
+    ok: true,
+    sourceLabel,
+    matrix,
+    sections,
+    doc: {
+      category: docCategory,
+      title: (parsed.docTitle || sourceLabel).slice(0, 120),
+      fileName: body.fileName || null,
+      length: text.length,
+      truncated: text.length > MAX_TEXT,
+      text,
+    },
+    categories: cats.map((c) => ({ id: c.id, label: c.label })),
+    notes: (parsed.notes || []).filter(Boolean),
+  };
+}
+
+/**
+ * 読み取りには数分かかることがあるため、進行度を少しずつ返しながら処理します。
+ * 返すのは Server-Sent Events です。
+ *   data: {"type":"progress","percent":42,"message":"..."}
+ *   data: {"type":"result", ...}
+ *   data: {"type":"error","error":"..."}
+ */
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  let body: {
-    kind?: 'file' | 'url' | 'text';
-    base64?: string;
-    mediaType?: string;
-    fileName?: string;
-    url?: string;
-    text?: string;
-  };
+  let body: Body;
   try {
     body = await req.json();
   } catch {
@@ -204,149 +407,58 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  try {
-    // ── 第1段：素材をテキストにする ──
-    let text = '';
-    let sourceLabel = '';
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      let closed = false;
+      const send = (obj: object) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+        } catch {
+          closed = true; // 画面を離れたなどで送れなくなった
+        }
+      };
 
-    if (body.kind === 'file') {
-      if (!body.base64) return NextResponse.json({ error: 'ファイルがありません' }, { status: 400 });
-      const name = body.fileName || '';
-      const lower = name.toLowerCase();
-      const mediaType = body.mediaType || '';
-      sourceLabel = name || 'アップロードしたファイル';
+      // 同じ内容を何度も送らない
+      let lastPercent = -1;
+      let lastMessage = '';
+      const report: Report = (percent, message) => {
+        const p = Math.max(0, Math.min(99, Math.round(percent)));
+        if (p === lastPercent && message === lastMessage) return;
+        lastPercent = p;
+        lastMessage = message;
+        send({ type: 'progress', percent: p, message });
+      };
 
-      if (lower.endsWith('.pdf') || mediaType === 'application/pdf') {
-        text = await pdfToText(body.base64, mediaType, name);
-      } else if (
-        lower.endsWith('.xlsx') || lower.endsWith('.xls') ||
-        mediaType.includes('spreadsheet') || mediaType.includes('excel')
-      ) {
-        text = xlsxToText(body.base64);
-      } else {
-        // csv / tsv / md / txt
-        text = Buffer.from(body.base64, 'base64').toString('utf-8');
+      report(1, '資料を受け取りました');
+
+      try {
+        const payload = await runIntake(body, slots, report);
+        send({ type: 'progress', percent: 100, message: '完了' });
+        send({ type: 'result', ...payload });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        console.error('[intake] error:', message);
+        send({ type: 'error', error: message });
+      } finally {
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          /* すでに閉じている */
+        }
       }
-    } else if (body.kind === 'url') {
-      const url = (body.url || '').trim();
-      if (!isSafeUrl(url)) {
-        return NextResponse.json(
-          { error: 'このURLは読み取れません。http(s) の外部サイトのURLを指定してください' },
-          { status: 400 },
-        );
-      }
-      const res = await fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FreadiaBot/1.0)' },
-        redirect: 'follow',
-        signal: AbortSignal.timeout(20000),
-      });
-      if (!res.ok) {
-        return NextResponse.json(
-          { error: `ページを取得できませんでした（HTTP ${res.status}）` },
-          { status: 400 },
-        );
-      }
-      text = htmlToText(await res.text());
-      if (text.trim().length < 50) {
-        return NextResponse.json(
-          { error: 'このページから本文を取得できませんでした。JavaScriptで描画されるページの可能性があります' },
-          { status: 400 },
-        );
-      }
-      sourceLabel = url;
-    } else {
-      text = body.text || '';
-      sourceLabel = body.fileName || '入力したテキスト';
-    }
+    },
+  });
 
-    text = text.trim();
-    if (!text) {
-      return NextResponse.json({ error: '内容を取得できませんでした' }, { status: 400 });
-    }
-
-    // ── 第2段：3つの行き先へ振り分ける ──
-    const cats: { id: string; label: string; hint: string | null }[] =
-      await prisma.knowledgeCategory.findMany({
-        select: { id: true, label: true, hint: true },
-        orderBy: [{ sort: 'asc' }, { createdAt: 'asc' }],
-      });
-    const catList = cats.length
-      ? cats.map((c) => `  id:"${c.id}" ${c.label}${c.hint ? `（${c.hint}）` : ''}`).join('\n')
-      : '  （分類が未登録です。docCategory は空にしてください）';
-
-    const prompt = [
-      routingInstruction(describeSlots(slots), describeSections()),
-      '',
-      '■ 参考資料の分類候補',
-      catList,
-      '',
-      `【資料：${sourceLabel}】`,
-      text.slice(0, MAX_TEXT),
-    ].join('\n');
-
-    const raw = await callClaude(prompt, { maxTokens: 8000 });
-    const parsed = extractJson<Routed>(raw);
-    if (!parsed) {
-      console.error('[intake] JSONを取り出せませんでした:', raw.slice(0, 500));
-      return NextResponse.json(
-        { error: 'AIの応答を読み取れませんでした。もう一度お試しください' },
-        { status: 500 },
-      );
-    }
-
-    // 行き先1：存在しないコードや範囲外の index を落とす
-    const valid = new Map(slots.map((s) => [`${s.code}#${s.index}`, s]));
-    const matrix = (parsed.matrix || [])
-      .filter((x) => x && x.value && String(x.value).trim())
-      .map((x) => ({ ...x, index: Number(x.index) }))
-      .filter((x) => valid.has(`${x.code}#${x.index}`))
-      .map((x) => {
-        const s = valid.get(`${x.code}#${x.index}`)!;
-        return {
-          code: x.code,
-          index: x.index,
-          title: s.title,
-          label: s.label,
-          existing: s.value,
-          value: String(x.value).trim(),
-          source: x.source || sourceLabel,
-        };
-      });
-
-    // 行き先2：既存の本文を添えて、上書きか追記かを画面で選べるようにする
-    const property = await prisma.propertyInfo.findFirst();
-    const current = parseSections(property?.content || '');
-    const sections = (parsed.property || [])
-      .filter((x) => x && x.section && x.value && String(x.value).trim())
-      .filter((x) => SECTION_KEYS.includes(x.section))
-      .map((x) => ({
-        section: x.section,
-        existing: current[x.section] || '',
-        value: String(x.value).trim(),
-      }));
-
-    // 行き先3：分類が合わなければ先頭の分類にしておく（画面で変更できる）
-    const docCategory = cats.find((c) => c.id === parsed.docCategory)?.id || cats[0]?.id || '';
-
-    return NextResponse.json({
-      ok: true,
-      sourceLabel,
-      matrix,
-      sections,
-      doc: {
-        category: docCategory,
-        title: (parsed.docTitle || sourceLabel).slice(0, 120),
-        fileName: body.fileName || null,
-        length: text.length,
-        truncated: text.length > MAX_TEXT,
-        text,
-      },
-      categories: cats.map((c) => ({ id: c.id, label: c.label })),
-      notes: (parsed.notes || []).filter(Boolean),
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    console.error('[intake] error:', message);
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      // 途中で溜め込まれると進行度が届かないため
+      'X-Accel-Buffering': 'no',
+    },
+  });
 }
