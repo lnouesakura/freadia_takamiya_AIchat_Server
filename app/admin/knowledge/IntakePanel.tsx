@@ -11,7 +11,7 @@
 // AIが読み違えたまま登録されると、そのままAIの回答根拠になるためです。
 import { useRef, useState } from 'react';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
-import { SECTION_COLORS } from '@/lib/propertySections';
+import { headingColor } from '@/lib/propertySections';
 import styles from './page.module.scss';
 
 /** 情報マトリクスのスロットに入る候補 */
@@ -28,8 +28,11 @@ export interface MatrixCandidate {
 
 /** 物件情報のカテゴリに入る候補 */
 export interface SectionCandidate {
+  /** 物件情報の見出し名（【】は含まない） */
   section: string;
   existing: string;
+  /** その見出しがまだ無い＝新しく作る */
+  isNew?: boolean;
   value: string;
 }
 
@@ -656,7 +659,7 @@ function SectionGroup({ items, on, mode, onToggle, onMode, onEdit }: {
 
       <div className={styles.destBody}>
         {items.map((s) => {
-          const col = SECTION_COLORS[s.section] || { bg: '#F1EFE8', fg: '#444441' };
+          const col = headingColor(s.section);
           const m = mode[s.section] || 'append';
           return (
             <div key={s.section} className={`${styles.entryRow} ${on[s.section] ? '' : styles.cardOff}`}>
@@ -666,6 +669,7 @@ function SectionGroup({ items, on, mode, onToggle, onMode, onEdit }: {
                   <span className={styles.sectionBadge} style={{ background: col.bg, color: col.fg }}>
                     {s.section}
                   </span>
+                  {s.isNew && <span className={styles.newBadge}>新しい見出し</span>}
                   {s.existing.trim() && (
                     <span className={styles.modeToggle}>
                       {(['append', 'overwrite'] as const).map((k) => (

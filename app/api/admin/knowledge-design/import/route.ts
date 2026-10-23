@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { snapshotMatrix } from '@/lib/snapshot';
 
 export const dynamic = 'force-dynamic';
 
@@ -290,6 +291,8 @@ export async function POST(req: NextRequest) {
 
   if (prune) {
     if (stale.matrices.length) {
+      // 登録済みの情報ごと消えるため、削除する前に控えておく
+      await snapshotMatrix(stale.matrices, 'JSON取込（--prune）で削除', session.user?.email || undefined);
       await prisma.knowledgeMatrix.deleteMany({ where: { code: { in: stale.matrices } } });
       result.removedMatrices = stale.matrices.length;
     }

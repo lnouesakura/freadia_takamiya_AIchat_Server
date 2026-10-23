@@ -15,11 +15,12 @@ import IntakePanel from './IntakePanel';
 import PropertyPanel from './PropertyPanel';
 import DocsPanel from './DocsPanel';
 import DesignPanel, { type Design } from './DesignPanel';
+import BackupPanel from './BackupPanel';
 import styles from './page.module.scss';
 
-type Tab = 'intake' | 'property' | 'docs' | 'design';
+type Tab = 'intake' | 'property' | 'docs' | 'design' | 'backup';
 
-const TABS: Tab[] = ['intake', 'property', 'docs', 'design'];
+const TABS: Tab[] = ['intake', 'property', 'docs', 'design', 'backup'];
 
 type Matrix = { code: string; required: string[]; requiredContent: string[]; status: string };
 
@@ -90,6 +91,7 @@ export default function KnowledgePage() {
           ['property', '物件情報'],
           ['docs', docCount === null ? '資料' : `資料（${docCount}）`],
           ['design', '設計データ'],
+          ['backup', 'バックアップ'],
         ] as [Tab, string][]).map(([key, label]) => (
           <button key={key} type="button"
             className={`${styles.tab} ${tab === key ? styles.tabActive : ''}`}
@@ -103,6 +105,7 @@ export default function KnowledgePage() {
       {tab === 'property' && <PropertyPanel reloadKey={reloadKey} />}
       {tab === 'docs' && <DocsPanel reloadKey={reloadKey} />}
       {tab === 'design' && <DesignPanel design={design} onDone={onApplied} />}
+      {tab === 'backup' && <BackupPanel reloadKey={reloadKey} onDone={onApplied} />}
     </div>
   );
 }

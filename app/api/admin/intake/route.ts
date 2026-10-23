@@ -21,7 +21,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { loadSlots, describeSlots, extractJson, callClaude } from '@/lib/knowledgeSlots';
-import { SECTION_KEYS, describeSections, parseSections } from '@/lib/propertySections';
+import { parseDoc, describeHeadings } from '@/lib/propertySections';
+import { getProperty } from '@/lib/propertyStore';
 import { splitPdfForApi } from '@/lib/pdfSplit';
 import * as XLSX from 'xlsx';
 
@@ -170,8 +171,10 @@ AIが顧客に回答するための根拠になります。項目ごとに1点�
 
 ${slotList}
 
-■ 行き先2：物件情報のカテゴリ
+■ 行き先2：物件情報の見出し
 物件そのものの説明文です。読んで分かる文章として入れてください。
+下はいま登録されている見出しです。合うものがあればその見出し名をそのまま使い、
+どれにも当てはまらないときは新しい見出し名を付けてかまいません。
 
 ${sectionList}
 
@@ -183,7 +186,7 @@ ${sectionList}
 - 数値・固有名詞は資料の表記のまま写す。言い換えない
 - 同じ事実が行き先1と行き先2の両方に該当することはよくあります。両方に入れてかまいません
 - 行き先1は「1項目＝1スロット」。複数の事実が該当するなら改行で並べて1つにまとめる
-- 行き先2は、箇条書きでも文章でも可。元の表記を保つ
+- 行き先2は、箇条書きでも文章でも可。元の表記を保つ。section には見出し名だけを書く（【】は付けない）
 - 「（入力済み）」と付いたスロットにも、資料により新しい・詳しい情報があれば候補として出してよい
 - どの行き先にも当てはまらない重要な事実は notes に書く
 - 該当が無い行き先は、空配列にする
@@ -194,7 +197,7 @@ ${sectionList}
     { "code": "ACC", "index": 0, "value": "抜き出した内容", "source": "資料のどこに書かれていたか（ページ・見出しなど）" }
   ],
   "property": [
-    { "section": "アクセス", "value": "カテゴリに入れる文章" }
+    { "section": "交通アクセス", "value": "その見出しに入れる文章" }
   ],
   "docCategory": "分類のid",
   "docTitle": "この資料の内容を表す短い題名",
@@ -295,6 +298,11 @@ async function runIntake(
   // ── 第2段：3つの行き先へ振り分ける ──
   report(READ_TO, '情報の行き先を判定しています');
 
+  // 物件情報は、いま登録されている見出しをAIへ渡す。
+  // 固定のカテゴリ名を押し付けると、資料の構造と噛み合わなくなる。
+  const property = await getProperty();
+  const doc = parseDoc(property?.content || '');
+
   const cats: { id: string; label: string; hint: string | null }[] =
     await prisma.knowledgeCategory.findMany({
       select: { id: true, label: true, hint: true },
@@ -305,7 +313,7 @@ async function runIntake(
     : '  （分類が未登録です。docCategory は空にしてください）';
 
   const prompt = [
-    routingInstruction(describeSlots(slots), describeSections()),
+    routingInstruction(describeSlots(slots), describeHeadings(doc)),
     '',
     '■ 参考資料の分類候補',
     catList,
@@ -348,17 +356,22 @@ async function runIntake(
       };
     });
 
-  // 行き先2：既存の本文を添えて、上書きか追記かを画面で選べるようにする
-  const property = await prisma.propertyInfo.findFirst();
-  const current = parseSections(property?.content || '');
+  // 行き先2：既存の本文を添えて、上書きか追記かを画面で選べるようにする。
+  // 見出しは固定リストで絞り込まない。知らない見出しでも候補として出し、
+  // 反映するときに新しい見出しとして作る。
   const sections = (parsed.property || [])
     .filter((x) => x && x.section && x.value && String(x.value).trim())
-    .filter((x) => SECTION_KEYS.includes(x.section))
-    .map((x) => ({
-      section: x.section,
-      existing: current[x.section] || '',
-      value: String(x.value).trim(),
-    }));
+    .map((x) => {
+      const heading = String(x.section).replace(/^【|】$/g, '').trim();
+      const found = doc.sections.find((s) => s.heading === heading);
+      return {
+        section: heading,
+        existing: found?.body || '',
+        isNew: !found,
+        value: String(x.value).trim(),
+      };
+    })
+    .filter((x) => x.section);
 
   // 行き先3：分類が合わなければ先頭の分類にしておく（画面で変更できる）
   const docCategory = cats.find((c) => c.id === parsed.docCategory)?.id || cats[0]?.id || '';

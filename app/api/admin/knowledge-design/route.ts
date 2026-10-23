@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { snapshotMatrix } from '@/lib/snapshot';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +69,9 @@ export async function PATCH(req: NextRequest) {
     if (type === 'matrix' && code) {
       const current = await prisma.knowledgeMatrix.findUnique({ where: { code } });
       if (!current) return NextResponse.json({ error: '項目が見つかりません' }, { status: 404 });
+
+      // 書き換える前に、いまの内容を控えておく
+      await snapshotMatrix([code], '情報マトリクスの画面で保存', session.user?.email || undefined);
 
       // 必要情報は required と同じ長さに揃えて保存する。
       // ずれると「何点中いくつ埋まったか」が数えられなくなる。

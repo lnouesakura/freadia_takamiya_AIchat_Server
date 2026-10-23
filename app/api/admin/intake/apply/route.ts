@@ -11,7 +11,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { SECTION_KEYS, parseSections, buildSections } from '@/lib/propertySections';
+import { parseDoc, buildDoc, putSection } from '@/lib/propertySections';
+import { getProperty, saveProperty } from '@/lib/propertyStore';
+import { snapshotProperty, snapshotMatrix } from '@/lib/snapshot';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -47,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   const matrixEntries = (body.matrix || []).filter((e) => e && e.code && e.value?.trim());
   const sectionEntries = (body.sections || [])
-    .filter((e) => e && e.value?.trim() && SECTION_KEYS.includes(e.section));
+    .filter((e) => e && e.value?.trim() && e.section?.trim());
   const doc = body.doc && body.doc.content?.trim() ? body.doc : null;
 
   if (!matrixEntries.length && !sectionEntries.length && !doc) {
@@ -71,6 +73,9 @@ export async function POST(req: NextRequest) {
         if (!byCode.has(e.code)) byCode.set(e.code, []);
         byCode.get(e.code)!.push(e);
       }
+
+      // 書き換える前に、いまの内容を控えておく
+      await snapshotMatrix(Array.from(byCode.keys()), '資料の取り込みで反映', updatedBy);
 
       for (const [code, list] of Array.from(byCode)) {
         const current = await withRetry<{ required: string[]; requiredContent: string[] } | null>(
@@ -110,31 +115,23 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── 行き先2：物件情報のカテゴリ ──
+    // ── 行き先2：物件情報の見出し ──
     if (sectionEntries.length) {
-      const property = await withRetry(() => prisma.propertyInfo.findFirst());
-      const sections = parseSections(property?.content || '');
+      // 書き換える前に控える
+      await snapshotProperty('資料の取り込みで反映', updatedBy);
+
+      const property = await withRetry(() => getProperty());
+      let doc = parseDoc(property?.content || '');
 
       for (const e of sectionEntries) {
-        const incoming = e.value.trim();
-        const existing = (sections[e.section] || '').trim();
-        sections[e.section] = e.mode === 'overwrite' || !existing
-          ? incoming
-          : `${existing}\n\n${incoming}`;
+        doc = putSection(doc, e.section.trim(), e.value, e.mode === 'overwrite' ? 'overwrite' : 'append');
         result.sections++;
       }
 
-      const content = buildSections(sections);
-      if (property) {
-        await withRetry(() => prisma.propertyInfo.update({
-          where: { id: property.id },
-          data: { content, updatedBy },
-        }));
-      } else {
-        await withRetry(() => prisma.propertyInfo.create({
-          data: { title: '物件情報', content, updatedBy },
-        }));
-      }
+      await withRetry(() => saveProperty(
+        { content: buildDoc(doc), ...(property ? {} : { title: '物件情報' }) },
+        updatedBy,
+      ));
     }
 
     // ── 行き先3：参考資料として保管 ──

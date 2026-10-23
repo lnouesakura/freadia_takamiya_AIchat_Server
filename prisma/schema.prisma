@@ -251,3 +251,32 @@ model FaqSeed {
   @@index([risk])
   @@map("faq_seeds")
 }
+
+// ───────────────────────────────────────────────
+// 事故からの復旧
+// ───────────────────────────────────────────────
+
+/// 上書きする直前の内容を控えておくための記録。
+///
+/// 物件情報や必要情報は、取り込みや保存で古い内容を置き換えます。
+/// 不具合や操作ミスで消えたときに戻せるよう、書き換える前の状態を
+/// ここへ残します。target と refId の組ごとに、新しいものから
+/// 一定件数だけ保持し、古いものは自動で削除します。
+model Snapshot {
+  id        String   @id @default(cuid())
+  /// 何の控えか。'property'（物件情報）| 'matrix'（必要情報）
+  target    String
+  /// 対象の識別子。property は 'main'、matrix はマトリクスのコード
+  refId     String
+  /// 書き換える前の内容（JSON文字列）
+  payload   String
+  /// どの操作で控えたか。画面に表示する
+  reason    String
+  /// 操作した管理者
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  @@index([target, refId, createdAt])
+  @@index([createdAt])
+  @@map("snapshots")
+}
