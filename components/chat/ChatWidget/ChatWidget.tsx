@@ -119,7 +119,19 @@ export default function ChatWidget({
 
     // 会話ログを束ねる識別ID。
     // newSession のときは新しく発行し直し、前回の続きを引き継ぎません。
-    let id = newSession ? null : localStorage.getItem(BROWSER_ID_KEY);
+    //
+    // ※ 物件サイトに iframe で貼ると、Safari は別サイト扱いで localStorage を
+    //    遮断します。そのとき localStorage に触るだけで例外が出るため、
+    //    読み書きの両方を try で囲っています。
+    //    使えない場合は毎回新しい会話として始まります（履歴は引き継ぎません）。
+    let id: string | null = null;
+    if (!newSession) {
+      try {
+        id = localStorage.getItem(BROWSER_ID_KEY);
+      } catch {
+        /* localStorage が使えない環境では毎回新規あつかい */
+      }
+    }
     if (!id) {
       id = `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
       try {

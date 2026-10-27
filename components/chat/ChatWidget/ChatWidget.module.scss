@@ -226,6 +226,11 @@ $dur-fade: .28s;    // 透明度
 }
 
 // ── スマホ ────────────────────────────────────────
+//
+// ここは「このページを直接開いているとき」だけに効かせます（.rootStandalone）。
+// 物件サイトに iframe で貼ると、通常表示の枠は 389px しかないため、
+// 幅だけで判断するとパソコンで見ていてもスマホ用の見た目になってしまいます。
+// iframe のときは、大きさを親ページが決めるので何もしません。
 @media (max-width: $bp-sm) {
   // /chat を直接開いたときは画面いっぱいに
   .rootStandalone:not(.rootFloating) {
@@ -258,11 +263,14 @@ $dur-fade: .28s;    // 透明度
     justify-content: center;
   }
 
-  .column,
-  .columnMedia,
-  .rootWide .column {
-    flex: 1;
-    padding: 12px 16px 16px;
+  .rootStandalone {
+    .column,
+    .columnMedia {
+      flex: 1;
+      padding: 12px 16px 16px;
+    }
+
+    &.rootWide .column { padding-top: 12px; }
   }
 }
 
