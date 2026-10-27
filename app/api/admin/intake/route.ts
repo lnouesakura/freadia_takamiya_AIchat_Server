@@ -24,6 +24,7 @@ import { loadSlots, describeSlots, extractJson, callClaude } from '@/lib/knowled
 import { parseDoc, describeHeadings } from '@/lib/propertySections';
 import { getProperty } from '@/lib/propertyStore';
 import { splitPdfForApi } from '@/lib/pdfSplit';
+import { judgeConflicts, CheckItem, Verdict } from '@/lib/conflictCheck';
 import * as XLSX from 'xlsx';
 
 export const dynamic = 'force-dynamic';
@@ -32,6 +33,29 @@ export const maxDuration = 300;
 
 /** 読み取ったテキストの上限。これを超える資料は前半だけを振り分けに使う */
 const MAX_TEXT = 60000;
+
+/** 情報マトリクスへ入れる候補。verdict は既存内容と見比べた結果 */
+type MatrixCandidate = {
+  code: string;
+  index: number;
+  title: string;
+  label: string;
+  existing: string;
+  value: string;
+  source: string;
+  verdict?: Verdict;
+  reason?: string;
+};
+
+/** 物件情報の見出しへ入れる候補 */
+type SectionCandidate = {
+  section: string;
+  existing: string;
+  isNew: boolean;
+  value: string;
+  verdict?: Verdict;
+  reason?: string;
+};
 
 type Routed = {
   matrix?: { code: string; index: number; value: string; source?: string }[];
@@ -323,11 +347,13 @@ async function runIntake(
   ].join('\n');
 
   const ROUTE_TOKENS = 8000;
+  // 行き先の判定が終わった時点の進行度。残りは既存内容との突き合わせに使います。
+  const ROUTE_TO = 94;
   const raw = await callClaude(prompt, {
     maxTokens: ROUTE_TOKENS,
     onText: (chars) => {
       const ratio = Math.min(chars / (ROUTE_TOKENS * CHARS_PER_TOKEN), 0.95);
-      report(READ_TO + (100 - READ_TO) * ratio, '情報の行き先を判定しています');
+      report(READ_TO + (ROUTE_TO - READ_TO) * ratio, '情報の行き先を判定しています');
     },
   });
 
@@ -339,7 +365,7 @@ async function runIntake(
 
   // 行き先1：存在しないコードや範囲外の index を落とす
   const valid = new Map(slots.map((s) => [`${s.code}#${s.index}`, s]));
-  const matrix = (parsed.matrix || [])
+  const matrix: MatrixCandidate[] = (parsed.matrix || [])
     .filter((x) => x && x.value && String(x.value).trim())
     .map((x) => ({ ...x, index: Number(x.index) }))
     .filter((x) => valid.has(`${x.code}#${x.index}`))
@@ -359,7 +385,7 @@ async function runIntake(
   // 行き先2：既存の本文を添えて、上書きか追記かを画面で選べるようにする。
   // 見出しは固定リストで絞り込まない。知らない見出しでも候補として出し、
   // 反映するときに新しい見出しとして作る。
-  const sections = (parsed.property || [])
+  const sections: SectionCandidate[] = (parsed.property || [])
     .filter((x) => x && x.section && x.value && String(x.value).trim())
     .map((x) => {
       const heading = String(x.section).replace(/^【|】$/g, '').trim();
@@ -372,6 +398,42 @@ async function runIntake(
       };
     })
     .filter((x) => x.section);
+
+  // ── すでに登録されている内容との突き合わせ ──
+  //
+  // 中身が空のところへ入れる場合は、比べる相手がいないので judging しません。
+  // すでに何か書いてあるところだけを、まとめて1回のAI呼び出しで判定します。
+  // ここでは判定するだけで、書き込み方（追記／上書き）は変えていません。
+  const checks: CheckItem[] = [];
+  const where: { kind: 'matrix' | 'section'; i: number }[] = [];
+
+  matrix.forEach((m, i) => {
+    if (!m.existing.trim()) return;
+    checks.push({ label: `${m.title}／${m.label}`, existing: m.existing, incoming: m.value });
+    where.push({ kind: 'matrix', i });
+  });
+  sections.forEach((s, i) => {
+    if (!s.existing.trim()) return;
+    checks.push({ label: s.section, existing: s.existing, incoming: s.value });
+    where.push({ kind: 'section', i });
+  });
+
+  if (checks.length) {
+    report(ROUTE_TO + 2, 'すでに登録されている内容と見比べています');
+    const verdicts = await judgeConflicts(checks);
+    verdicts.forEach((v, k) => {
+      const at = where[k];
+      if (!at) return;
+      if (at.kind === 'matrix') {
+        matrix[at.i].verdict = v.verdict;
+        matrix[at.i].reason = v.reason;
+      } else {
+        sections[at.i].verdict = v.verdict;
+        sections[at.i].reason = v.reason;
+      }
+    });
+    report(99, '見比べが終わりました');
+  }
 
   // 行き先3：分類が合わなければ先頭の分類にしておく（画面で変更できる）
   const docCategory = cats.find((c) => c.id === parsed.docCategory)?.id || cats[0]?.id || '';

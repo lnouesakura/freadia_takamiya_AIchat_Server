@@ -623,3 +623,30 @@
   border-top: 1px solid rgba($stone, .15);
 }
 .targetRow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+
+// ── すでに登録されている内容との突き合わせ結果 ──
+// 食い違いは赤、重複は灰色。どちらも既定ではチェックが外れています。
+.checkSummary {
+  display: flex; flex-direction: column; gap: 8px; margin: 12px 0 0;
+}
+
+.conflictNote {
+  margin: 10px 0 0; padding: 10px 12px; border-radius: $radius-md;
+  background: $red-bg; border: 1px solid $red-border; color: $red-error;
+  font-size: 11px; line-height: 1.8; font-family: $font-serif-jp;
+}
+
+.sameNote {
+  margin: 10px 0 0; padding: 10px 12px; border-radius: $radius-md;
+  background: rgba($stone, .1); border: 1px solid rgba($stone, .28); color: $charcoal-light;
+  font-size: 11px; line-height: 1.8; font-family: $font-serif-jp;
+}
+
+.conflictBadge, .sameBadge {
+  display: inline-block; margin-right: 8px;
+  padding: 3px 9px; border-radius: $radius-full;
+  font-size: 10px; font-family: $font-serif-jp; white-space: nowrap;
+}
+
+.conflictBadge { background: rgba($red-error, .15); color: $red-error; font-weight: 600; }
+.sameBadge     { background: rgba($stone, .22);     color: $charcoal-light; }

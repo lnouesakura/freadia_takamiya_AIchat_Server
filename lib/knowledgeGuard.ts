@@ -16,6 +16,10 @@ import { prisma } from '@/lib/prisma';
 const MAX_ESCALATE_TOPICS = 40;
 const MAX_FIXED_ANSWERS = 20;
 const MAX_PENDING_ITEMS = 40;
+/** お客様タイプ1つあたりに並べる論点の数 */
+const MAX_TOPICS_PER_PERSONA = 12;
+/** 必要な情報が未登録のため答えられない質問の数 */
+const MAX_BLOCKED_QUESTIONS = 40;
 
 /** モデルルームの開設状況を持つマトリクス。未登録なら来場導線を出さない。 */
 const VISIT_CODE = 'VST';
@@ -99,6 +103,32 @@ ${pending.slice(0, MAX_PENDING_ITEMS).map((m) => `・${m.title}`).join('\n')}`,
     );
   }
 
+  // ── 必要な情報が未登録のため、まだ答えられない質問 ──
+  //
+  // 想定問答は「答えるのにどの情報が要るか」を持っています（ref）。
+  // 上の『まだ情報が登録されていない領域』は論点の名前なので、
+  // AIは目の前の質問がそれに当たるかを自分で判断しなければなりません。
+  // ここでは実際の質問の形で並べ、判断そのものを不要にします。
+  //
+  // 固定回答があるものと、もともと有人対応に回すものは除きます。
+  const blocked = (faqs || []).filter(
+    (q) =>
+      q.risk !== 'escalate' &&
+      !(q.answer && q.answer.trim()) &&
+      (q.ref || []).length > 0 &&
+      (q.ref || []).some((code) => !registered.has(code)),
+  );
+  if (blocked.length) {
+    const list = Array.from(new Set(blocked.map((q) => q.q))).slice(0, MAX_BLOCKED_QUESTIONS);
+    const rest = blocked.length - list.length;
+    parts.push(
+      `【まだ答えられない質問】
+次の質問は、答えるのに必要な情報がまだ揃っていません。
+推測や一般論で埋めず、「正確にご案内するため確認が必要です」とお伝えして担当者におつなぎしてください。
+${list.map((t) => `・${t}`).join('\n')}${rest > 0 ? `\n（ほか ${rest} 件）` : ''}`,
+    );
+  }
+
   // ── 登録済みの情報本文 ──
   // content は必要情報3点をまとめたもの（管理画面の保存時に自動生成される）
   const filled = (matrices || []).filter((m) => registered.has(m.code) && m.content?.trim());
@@ -119,17 +149,47 @@ ${pitfalls.map((m) => `・${m.title}：${m.pitfall}`).join('\n')}`,
     );
   }
 
-  // ── お客様タイプ別の方針と禁句 ──
-  const withPolicy = (personas || []).filter((p) => p.replyPolicy?.trim() || p.ngWords?.trim());
+  // ── お客様タイプ別の方針・響く点・重点的に見る情報・禁句 ──
+  //
+  // 情報マトリクスは「どのお客様タイプ向けの論点か」を持っています（personas）。
+  // これを渡さないと、AIは登録情報を一律に扱うことになり、
+  // せっかく設計したペルソナが効きません。
+  // 登録済みのものだけを、タイプごとに並べ直して渡します。
+  const topicsByPersona = new Map<string, string[]>();
+  (matrices || []).forEach((m) => {
+    if (!registered.has(m.code)) return;
+    (m.personas || []).forEach((code) => {
+      const list = topicsByPersona.get(code) || [];
+      list.push(m.title);
+      topicsByPersona.set(code, list);
+    });
+  });
+
+  const withPolicy = (personas || []).filter(
+    (p) =>
+      p.replyPolicy?.trim() ||
+      p.ngWords?.trim() ||
+      p.trigger?.trim() ||
+      (topicsByPersona.get(p.code) || []).length > 0,
+  );
   if (withPolicy.length) {
     parts.push(
       `【お客様タイプ別の応対方針】
-会話の内容からお客様のタイプを推し量り、該当する方針に沿って応対してください。禁句は、そのタイプの購入意欲を確実に冷ますか、誤情報になる表現です。
+会話の内容からお客様のタイプを推し量り、該当する方針に沿って応対してください。
+　響く点 … そのお客様が住まいを選ぶときの判断の軸です。事実をお伝えするときは、ここへ結びつけてください。
+　重点　 … そのお客様が最も知りたい論点です。話を広げるときは、この中から選んでください。
+　禁句　 … そのお客様の購入意欲を確実に冷ますか、誤情報になる表現です。
+タイプを決めつけて話を進めてはいけません。あくまで、ご案内の重心を寄せるための目安です。
 ${withPolicy
   .map((p) => {
     const lines = [`■ ${p.name}`];
-    if (p.replyPolicy?.trim()) lines.push(`  方針：${p.replyPolicy}`);
-    if (p.ngWords?.trim()) lines.push(`  禁句：${p.ngWords}`);
+    if (p.trigger?.trim()) lines.push(`  響く点：${p.trigger.trim()}`);
+    if (p.replyPolicy?.trim()) lines.push(`  方針：${p.replyPolicy.trim()}`);
+    const topics = topicsByPersona.get(p.code) || [];
+    if (topics.length) {
+      lines.push(`  重点：${topics.slice(0, MAX_TOPICS_PER_PERSONA).join(' ／ ')}`);
+    }
+    if (p.ngWords?.trim()) lines.push(`  禁句：${p.ngWords.trim()}`);
     return lines.join('\n');
   })
   .join('\n')}`,

@@ -24,6 +24,10 @@ export interface MatrixCandidate {
   existing: string;
   value: string;
   source: string;
+  /** すでに登録されている内容と見比べた結果 */
+  verdict?: Verdict;
+  /** なぜそう判定したか（画面にそのまま出します） */
+  reason?: string;
 }
 
 /** 物件情報のカテゴリに入る候補 */
@@ -34,6 +38,10 @@ export interface SectionCandidate {
   /** その見出しがまだ無い＝新しく作る */
   isNew?: boolean;
   value: string;
+  /** すでに登録されている内容と見比べた結果 */
+  verdict?: Verdict;
+  /** なぜそう判定したか（画面にそのまま出します） */
+  reason?: string;
 }
 
 /** 参考資料として保管する候補 */
@@ -45,6 +53,20 @@ export interface DocCandidate {
   truncated: boolean;
   text: string;
 }
+
+/**
+ * すでに登録されている内容と見比べた結果。
+ *   add      新しい情報が増える
+ *   same     すでに書いてあることと同じ
+ *   conflict 数字や条件が食い違っている
+ */
+export type Verdict = 'add' | 'same' | 'conflict';
+
+/**
+ * 最初からチェックを入れておくかどうか。
+ * 重複と食い違いは、人が中身を見てから決めるべきものなので外しておきます。
+ */
+const pickByDefault = (v?: Verdict) => v !== 'same' && v !== 'conflict';
 
 type Source = 'file' | 'url' | 'talk';
 type Turn = { role: 'user' | 'assistant'; content: string };
@@ -83,7 +105,7 @@ export default function IntakePanel({ onApplied }: { onApplied: () => void }) {
     setMatrixOn((prev) => {
       const next = { ...prev };
       list.forEach((c) => {
-        if (next[matrixKey(c)] === undefined) next[matrixKey(c)] = true;
+        if (next[matrixKey(c)] === undefined) next[matrixKey(c)] = pickByDefault(c.verdict);
       });
       return next;
     });
@@ -162,13 +184,18 @@ export default function IntakePanel({ onApplied }: { onApplied: () => void }) {
       });
       setSectionOn((prev) => {
         const next = { ...prev };
-        incoming.forEach((s) => { if (next[s.section] === undefined) next[s.section] = true; });
+        incoming.forEach((s) => {
+          if (next[s.section] === undefined) next[s.section] = pickByDefault(s.verdict);
+        });
         return next;
       });
       setSectionMode((prev) => {
         const next = { ...prev };
-        // 既存の本文があるときは、消さないように既定を「追記」にする
-        incoming.forEach((s) => { if (!next[s.section]) next[s.section] = 'append'; });
+        // 既存の本文があるときは、消さないように既定を「追記」にする。
+        // ただし食い違っているときは、そのまま足すと矛盾が残るので「上書き」にします。
+        incoming.forEach((s) => {
+          if (!next[s.section]) next[s.section] = s.verdict === 'conflict' ? 'overwrite' : 'append';
+        });
         return next;
       });
 
@@ -191,6 +218,12 @@ export default function IntakePanel({ onApplied }: { onApplied: () => void }) {
   const selectedMatrix = matrix.filter((c) => matrixOn[matrixKey(c)]);
   const selectedSections = sections.filter((s) => sectionOn[s.section]);
   const selectedTotal = selectedMatrix.length + selectedSections.length + (doc && docOn ? 1 : 0);
+
+  // すでに登録されている内容と見比べた結果の集計。
+  // 食い違いと重複は、最初からチェックを外してあります。
+  const allCandidates = [...matrix, ...sections];
+  const conflictCount = allCandidates.filter((c) => c.verdict === 'conflict').length;
+  const sameCount = allCandidates.filter((c) => c.verdict === 'same').length;
   const hasResult = matrix.length > 0 || sections.length > 0 || doc !== null;
 
   const apply = async () => {
@@ -314,6 +347,25 @@ export default function IntakePanel({ onApplied }: { onApplied: () => void }) {
             内容はその場で直せます。<strong>反映するまで保存されません。</strong>
             数値や固有名詞が資料と合っているか、目を通してから反映してください。
           </p>
+
+          {(conflictCount > 0 || sameCount > 0) && (
+            <div className={styles.checkSummary}>
+              {conflictCount > 0 && (
+                <p className={styles.conflictNote}>
+                  <span className={styles.conflictBadge}>食い違い</span>
+                  {conflictCount}件、すでに登録されている内容と数字や条件が食い違っています。
+                  中身を確かめてから、チェックを入れて反映してください。
+                  そのまま足すと、AIがどちらを答えるか分からなくなります。
+                </p>
+              )}
+              {sameCount > 0 && (
+                <p className={styles.sameNote}>
+                  <span className={styles.sameBadge}>重複</span>
+                  {sameCount}件は、すでに書いてある内容と同じでした。入れても情報は増えません。
+                </p>
+              )}
+            </div>
+          )}
 
           {matrix.length > 0 && (
             <MatrixGroup
@@ -577,6 +629,29 @@ function TalkInput({ draft, onSlots, onError }: {
   );
 }
 
+/* ───────────── 既存内容との突き合わせ結果 ───────────── */
+
+/**
+ * すでに登録されている内容と見比べた結果を出します。
+ * 新しい情報（add）のときは、わざわざ言う必要がないので何も出しません。
+ */
+function VerdictNote({ verdict, reason }: { verdict?: Verdict; reason?: string }) {
+  if (verdict !== 'same' && verdict !== 'conflict') return null;
+  const isConflict = verdict === 'conflict';
+  return (
+    <p className={isConflict ? styles.conflictNote : styles.sameNote}>
+      <span className={isConflict ? styles.conflictBadge : styles.sameBadge}>
+        {isConflict ? '食い違い' : '重複'}
+      </span>
+      {reason
+        ? reason
+        : isConflict
+          ? 'すでに登録されている内容と食い違っています'
+          : 'すでに登録されている内容と同じです'}
+    </p>
+  );
+}
+
 /* ───────────── 行き先1：情報マトリクス ───────────── */
 
 function MatrixGroup({ items, on, onToggle, onToggleAll, onEdit }: {
@@ -618,6 +693,7 @@ function MatrixGroup({ items, on, onToggle, onToggleAll, onEdit }: {
                   <span className={styles.entryTitle}>{c.title}</span>
                 </p>
                 <p className={styles.sub}>{c.label}</p>
+                <VerdictNote verdict={c.verdict} reason={c.reason} />
 
                 {c.existing.trim() && (
                   <p className={styles.blockNote}>
@@ -682,6 +758,8 @@ function SectionGroup({ items, on, mode, onToggle, onMode, onEdit }: {
                     </span>
                   )}
                 </p>
+
+                <VerdictNote verdict={s.verdict} reason={s.reason} />
 
                 {s.existing.trim() && (
                   <p className={styles.blockNote}>
