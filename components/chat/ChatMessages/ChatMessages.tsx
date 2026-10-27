@@ -2,6 +2,7 @@
 import React from 'react';
 import { useEffect, useRef } from 'react';
 import { Character } from '@/lib/characters';
+import { splitMedia } from '@/lib/chatMedia';
 import styles from './ChatMessages.module.scss';
 
 export interface Message {
@@ -16,6 +17,11 @@ interface Props {
   character: Character;
   isSpeaking?: boolean;
   onStopSpeech?: () => void;
+  /**
+   * 拡大表示で左に画像の枠（MediaPane）を出しているとき true。
+   * 同じ画像が吹き出しの中にも出てしまうのを防ぎます。
+   */
+  hideInlineMedia?: boolean;
 }
 
 function FemaleIcon() {
@@ -133,7 +139,14 @@ function formatContent(text: string) {
   ));
 }
 
-export default function ChatMessages({ messages, isLoading, character, isSpeaking, onStopSpeech }: Props) {
+export default function ChatMessages({
+  messages,
+  isLoading,
+  character,
+  isSpeaking,
+  onStopSpeech,
+  hideInlineMedia = false,
+}: Props) {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -152,6 +165,9 @@ export default function ChatMessages({ messages, isLoading, character, isSpeakin
       {messages.map((msg, i) => {
         // ストリーミング開始直後の空吹き出しはドットアニメーションに差し替え
         const isEmptyStream = isLoading && i === messages.length - 1 && msg.role === 'assistant' && msg.content === '';
+
+        // 本文と画像を分ける。画像がなければ本文はそのままです
+        const { text: body, images } = splitMedia(msg.content);
 
         return (
           <div
@@ -177,7 +193,20 @@ export default function ChatMessages({ messages, isLoading, character, isSpeakin
                       {character.name}
                     </span>
                   )} */}
-                  <div className={styles.bubbleContent}>{formatContent(msg.content)}</div>
+                  {body && <div className={styles.bubbleContent}>{formatContent(body)}</div>}
+
+                  {/* 左に画像の枠を出していないときは、吹き出しの中に画像を出します */}
+                  {!hideInlineMedia && images.length > 0 && (
+                    <div className={styles.inlineMedia}>
+                      {images.map((img) => (
+                        <figure key={img.url} className={styles.inlineFigure}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={img.url} alt={img.caption || ''} />
+                          {img.caption && <figcaption>{img.caption}</figcaption>}
+                        </figure>
+                      ))}
+                    </div>
+                  )}
                   {/* 相談ステータスのときCTAボタンを表示 */}
                   {/* {msg.role === 'assistant' && msg.status === 'consult' && (
                     <div className={styles.ctaButtons}>

@@ -1,0 +1,280 @@
+// components/chat/ChatWidget/ChatWidget.module.scss
+// Figma「F656_フリーディア大楠」コーディング用（node 1027:18）に合わせています。
+//
+// ■ 動きについて
+// 開く・閉じる・拡大・縮小は、すべて位置と透明度の変化でつないでいます。
+// パネルは閉じているあいだも画面に残していて、消したり出したりはしていません。
+// 入れ替えてしまうと動きが途切れるためです。
+// 速さを変えたいときは、下の $ease と時間の指定をさわってください。
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+// ゆっくり出て、すっと止まる曲線
+$ease: cubic-bezier(.22, .61, .36, 1);
+$dur-panel: .42s;   // パネルの大きさ・位置
+$dur-fade: .28s;    // 透明度
+
+// ── パネルの置き場所 ──────────────────────────────
+// 既定（/chat をiframeで貼るとき）は、与えられた枠いっぱいに広がります。
+.root {
+  position: relative;
+  height: 100%;
+  background: transparent;
+}
+
+// /chat を単体で開いたときだけ、右下に余白をとって浮かせます
+.rootStandalone:not(.rootFloating) {
+  padding: 20px;
+}
+
+// ── パネル本体（node 1027:158） ────────────────────
+.panel {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: min(389px, 100%);
+  height: min(464px, 100%);
+  display: flex;
+  flex-direction: column;
+  background: $chat-panel;
+  border-radius: $chat-radius;
+  box-shadow: $chat-shadow;
+  overflow: hidden;
+  // 右下のボタンから生えてくるように見せる
+  transform-origin: right bottom;
+  transition:
+    width $dur-panel $ease,
+    height $dur-panel $ease,
+    top $dur-panel $ease,
+    left $dur-panel $ease,
+    right $dur-panel $ease,
+    bottom $dur-panel $ease,
+    opacity $dur-fade ease,
+    transform $dur-fade $ease,
+    visibility 0s;
+}
+
+// 拡大表示（node 1027:269）
+.rootWide .panel {
+  width: 100%;
+  height: 100%;
+}
+
+// ── ページの上に浮かせるとき（トップページ） ──────
+// 枠そのものはクリックを通し、パネルとボタンだけが反応します。
+.rootFloating {
+  position: fixed;
+  inset: 0;
+  padding: 0;
+  height: auto;
+  z-index: 9998;
+  pointer-events: none;
+}
+
+.rootFloating .panel,
+.rootFloating .launcher {
+  position: fixed;
+  pointer-events: auto;
+}
+
+// 通常表示：右下に浮かせる（node 1027:158 の位置）
+//
+// 幅と高さを auto にせず、四辺すべてを数値で指定しています。
+// auto のままだと拡大のときに途中が計算できず、動きがカクつくためです。
+//   左 = 画面幅 - (389 + 18)   上 = 画面高 - (464 + 63)
+.rootFloating .panel {
+  top: max(41px, calc(100% - 527px));
+  left: max(15px, calc(100% - 407px));
+  right: 18px;
+  bottom: 63px;
+  width: auto;
+  height: auto;
+}
+
+// 拡大表示：画面いっぱいに広げる（node 1027:269 の位置）
+.rootFloating.rootWide .panel {
+  top: 41px;
+  left: 15px;
+  right: 18px;
+  bottom: 42px;
+  width: auto;
+  height: auto;
+}
+
+// ── 閉じているとき ────────────────────────────────
+// パネルは少し縮んで消え、右下のボタンが入れ替わりに現れます。
+.rootClosed .panel {
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(.92) translateY(10px);
+  pointer-events: none;
+  // 消えきってから visibility を切り替える
+  transition:
+    opacity $dur-fade ease,
+    transform $dur-fade $ease,
+    visibility 0s linear $dur-fade;
+}
+
+// ── ヘッダーより下 ────────────────────────────────
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+// 会話欄
+.column {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 13px $chat-pad 27px;
+  transition: flex-basis $dur-panel $ease, padding $dur-panel $ease;
+}
+
+.inner {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  // 通常表示では幅いっぱい。拡大すると 541px に寄ります
+  max-width: 100%;
+  margin: 0 auto;
+  transition: max-width $dur-panel $ease;
+}
+
+// 拡大表示・画像なし：会話欄を中央に寄せる（node 1027:302）
+.rootWide .column { padding-top: 17px; }
+
+.columnCentered .inner {
+  max-width: $chat-col-wide;
+}
+
+// 拡大表示・画像あり：左に画像、右に会話欄（node 1027:202）
+.columnMedia {
+  flex: 0 0 $chat-col;
+  padding: 17px 25px 27px 37px;
+}
+
+// ── 会話の流れる部分 ──────────────────────────────
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  // 下に続く「よくあるご質問」や入力欄とのあいだの余白
+  margin-bottom: 16px;
+}
+
+// ── 閉じたときの楕円ボタン（node 1027:19 / 1027:86） ──
+// 225 × 53 の、両端が半円の形です。影は付けません。
+.launcher {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  width: 225px;
+  max-width: 100%;
+  height: 53px;
+  padding: 0 28px 0 22px;
+  border: none;
+  border-radius: $radius-full;
+  background: $chat-tan;
+  cursor: pointer;
+  transform-origin: right bottom;
+  transition:
+    opacity $dur-fade ease,
+    transform $dur-fade $ease,
+    background .2s ease,
+    visibility 0s;
+
+  > img { flex-shrink: 0; }
+
+  > span {
+    font-family: $font-sans;
+    font-weight: 700;
+    font-size: 14px;
+    color: $white;
+    white-space: nowrap;
+  }
+
+  &:hover { background: #9B8164; }
+  &:active { transform: translateY(1px); }
+
+  @include focus-ring;
+}
+
+.rootFloating .launcher {
+  right: 20px;
+  bottom: 26px;
+}
+
+// 開いているあいだはボタンを隠す
+.root:not(.rootClosed) .launcher {
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(.88);
+  pointer-events: none;
+  transition:
+    opacity $dur-fade ease,
+    transform $dur-fade $ease,
+    visibility 0s linear $dur-fade;
+}
+
+// ── スマホ ────────────────────────────────────────
+@media (max-width: $bp-sm) {
+  // /chat を直接開いたときは画面いっぱいに
+  .rootStandalone:not(.rootFloating) {
+    padding: 0;
+
+    .panel {
+      width: 100%;
+      height: 100%;
+      border-radius: 0;
+    }
+  }
+
+  // 浮かせているときも、開いたら画面いっぱいに
+  .rootFloating .panel,
+  .rootFloating.rootWide .panel {
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: auto;
+    border-radius: 0;
+  }
+
+  .rootFloating .launcher {
+    right: 16px;
+    left: 16px;
+    bottom: 16px;
+    width: auto;
+    justify-content: center;
+  }
+
+  .column,
+  .columnMedia,
+  .rootWide .column {
+    flex: 1;
+    padding: 12px 16px 16px;
+  }
+}
+
+// ── 動きを減らす設定にしている方へ ────────────────
+// OSで「視差効果を減らす」を選んでいる場合は、動きを止めます。
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .launcher,
+  .column,
+  .inner,
+  .scroll {
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

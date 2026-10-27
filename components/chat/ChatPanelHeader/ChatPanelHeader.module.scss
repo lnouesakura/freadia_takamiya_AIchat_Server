@@ -1,0 +1,161 @@
+// components/chat/ChatPanelHeader/ChatPanelHeader.module.scss
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+.bar {
+  position: relative;
+  flex-shrink: 0;
+  height: 53px;
+  background: $chat-tan;
+  // 角丸はパネル側（overflow: hidden）で切り落としています
+  display: flex;
+  align-items: center;
+  // 左の余白はパネルと同じ。右はボタンぶんだけ詰める
+  padding: 0 20px 0 $chat-pad;
+  gap: 12px;
+}
+
+// タイトル（アイコン＋文字）
+.title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+
+  > img {
+    flex-shrink: 0;
+  }
+
+  > span {
+    font-family: $font-sans;
+    font-weight: 700;
+    font-size: 14px;
+    color: $white;
+    white-space: nowrap;
+  }
+}
+
+// 拡大表示のときはタイトルを中央に寄せる（Figma node 1027:288）
+//
+// 左寄せと中央寄せは位置の決め方そのものが違うので、途中の位置を
+// 計算できません。そこで、切り替わるときだけ軽く浮かび上がらせて
+// つないでいます。アニメーションの名前を2つに分けているのは、
+// 行き帰りのどちらでも動かすためです。
+.title {
+  animation: titleToLeft .4s cubic-bezier(.22, .61, .36, 1) both;
+}
+
+.barWide .title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  animation: titleToCenter .4s cubic-bezier(.22, .61, .36, 1) both;
+}
+
+@keyframes titleToCenter {
+  from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes titleToLeft {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+// 拡大／縮小。白い角丸の四角にアイコンがのる
+.zoomBtn {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 5px;
+  background: $white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity .2s ease;
+
+  &:hover { opacity: .75; }
+  @include focus-ring;
+}
+
+.closeBtn {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity .2s ease;
+
+  &:hover { opacity: .7; }
+  @include focus-ring;
+}
+
+// 音声読み上げ（NEXT_PUBLIC_ENABLE_VOICE=true のときだけ出ます）
+.voiceBtn {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: 1px solid rgba($white, .6);
+  border-radius: 5px;
+  background: none;
+  color: $white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .2s ease;
+
+  &:hover { background: rgba($white, .18); }
+  @include focus-ring;
+}
+
+.voiceBtnOn {
+  background: $white;
+  color: $chat-tan;
+
+  &:hover { background: rgba($white, .85); }
+}
+
+// 拡大・縮小のアイコンは、押すたびに軽く回して切り替えます
+.zoomBtn > img {
+  animation: zoomIconIn .3s ease both;
+}
+
+@keyframes zoomIconIn {
+  from { opacity: 0; transform: rotate(-35deg) scale(.7); }
+  to   { opacity: 1; transform: rotate(0) scale(1); }
+}
+
+@media (max-width: $bp-sm) {
+  .bar { padding: 0 14px 0 16px; gap: 8px; }
+  .title { gap: 10px; > span { font-size: 13px; } }
+  .actions { gap: 10px; }
+
+  .barWide .title {
+    position: static;
+    transform: none;
+    animation: titleToLeft .4s cubic-bezier(.22, .61, .36, 1) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title,
+  .barWide .title,
+  .zoomBtn > img {
+    animation: none;
+    opacity: 1;
+  }
+}

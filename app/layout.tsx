@@ -34,7 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ja" className={ipaGothic.variable}>
       <head>
         <link
-          href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&display=swap"
           rel="stylesheet"
         />
       </head>

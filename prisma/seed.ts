@@ -9,6 +9,21 @@ import { MANSION_DATA } from '../lib/mansionData';
 
 const prisma = new PrismaClient();
 
+/**
+ * 案件名を lib/mansionData.ts の【物件名】から読み取ります。
+ *
+ * 以前はここに案件名を直接書いていましたが、本文を差し替えたときに
+ * 書き換え忘れると、別物件の名前のまま登録されてしまいます。
+ * 実際に、本文がフリーディア高宮駅前プレミアムなのに名前だけ
+ * 前の案件のままになっていました。1か所から読むようにして防ぎます。
+ */
+function readPropertyTitle(data: string): string {
+  const m = data.match(/【物件名】\s*\r?\n\s*(.+)/);
+  if (!m) return 'AIコンシェルジュ';
+  // 「フリーディア高宮駅前プレミアム（FREADIA ...）」から英字表記を落とす
+  return m[1].replace(/（[^）]*）\s*$/, '').trim();
+}
+
 async function main() {
   // ── 管理画面のログインアカウント ──
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
@@ -43,7 +58,7 @@ async function main() {
   if (!existing) {
     await prisma.propertyInfo.create({
       data: {
-        title: 'プレミスト甲子園口',
+        title: readPropertyTitle(MANSION_DATA),
         content: MANSION_DATA,
         updatedBy: 'seed',
       },
@@ -54,14 +69,16 @@ async function main() {
   }
 
   // ── 接客ノウハウ ──
+  // ここに書いた内容は、管理画面「キャラクター設計 → 設定」タブに入ります。
+  //
+  // 以前は推しポイントに「駅徒歩8分」「全戸south向き」と書かれていました。
+  // これは前の案件の内容で、フリーディア高宮駅前プレミアム（高宮駅 徒歩1分）とは
+  // 食い違います。推しポイントは案件ごとに必ず変わるため、
+  // ここでは空にして、管理画面から入れていただく形にしました。
   const prompts: { section: string; content: string }[] = [
     {
       section: 'appeal',
-      content: [
-        '・駅徒歩8分の立地と、閑静な住宅街という両立',
-        '・全戸south向き中心の採光',
-        '・共用施設よりも「日々の暮らしやすさ」を軸に伝える',
-      ].join('\n'),
+      content: '',
     },
     {
       section: 'tone',

@@ -4,10 +4,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { categorizeQuestion, extractKeywords, classifyResponse } from '@/lib/analyzeQuestion';
-import { CHARACTERS, CharacterId } from '@/lib/characters';
 import { maskPii } from '@/lib/maskPii';
-import { buildSystemPrompt } from '@/lib/systemPrompt';
-import { buildKnowledgeGuard } from '@/lib/knowledgeGuard';
+import { buildChatPrompt } from '@/lib/buildChatPrompt';
 
 // 使用するモデル。切り替えたい場合はここを変更してください。
 const MODEL = 'claude-sonnet-4-6';
@@ -18,83 +16,6 @@ export interface Message {
   content: string;
 }
 
-// ── システムプロンプトを組み立てる ──────────────────────────
-async function getSystemPrompt(characterId?: string): Promise<string> {
-  let propertyTitle = 'AIコンシェルジュ';
-  let mansionData = '';
-  let salesAppeal = '';
-  let salesTone = '';
-  let salesTechnique = '';
-  let extraChatKnowledge = '';
-
-  // 案件情報（DB）
-  try {
-    const property = await prisma.propertyInfo.findFirst({ orderBy: { updatedAt: 'desc' } });
-    if (property) {
-      mansionData = property.content;
-      if (property.title) propertyTitle = property.title;
-    }
-  } catch {
-    /* DB未接続でもフォールバックで動かす */
-  }
-
-  // DBに情報が無ければ、コード側のサンプルデータを使う
-  if (!mansionData) {
-    const { MANSION_DATA } = await import('@/lib/mansionData');
-    mansionData = MANSION_DATA;
-  }
-
-  // 接客ノウハウ（DB）
-  try {
-    const sales = await prisma.salesPrompt.findMany();
-    sales.forEach((s) => {
-      if (s.section === 'appeal') salesAppeal = s.content;
-      if (s.section === 'tone') salesTone = s.content;
-      if (s.section === 'technique') salesTechnique = s.content;
-    });
-  } catch {
-    /* なければ空のまま */
-  }
-
-  // 追加資料（DB）。分類（KnowledgeCategory）の target で振り分ける。
-  //   target='property' … 物件知識として渡す / それ以外 … 接客情報として渡す
-  try {
-    const [docs, categories] = await Promise.all([
-      prisma.knowledgeDoc.findMany({ orderBy: { createdAt: 'asc' } }),
-      prisma.knowledgeCategory.findMany(),
-    ]);
-    const targetOf = (categoryId: string) =>
-      categories.find((c) => c.id === categoryId)?.target ?? (categoryId === 'property' ? 'property' : 'chat');
-    const propertyDocs = docs.filter((d) => targetOf(d.category) === 'property');
-    const otherDocs = docs.filter((d) => targetOf(d.category) !== 'property');
-    if (propertyDocs.length) {
-      mansionData = `${mansionData}\n\n${propertyDocs.map((d) => `【${d.title}】\n${d.content}`).join('\n\n')}`;
-    }
-    if (otherDocs.length) {
-      extraChatKnowledge = otherDocs.map((d) => `【${d.title}】\n${d.content}`).join('\n\n');
-    }
-  } catch {
-    /* なければ無視 */
-  }
-
-  const character =
-    characterId && CHARACTERS[characterId as CharacterId] ? CHARACTERS[characterId as CharacterId] : null;
-
-  const base = buildSystemPrompt({
-    propertyTitle,
-    characterInstruction: character ? `\n【キャラクター設定】\n${character.promptInstruction}\n` : '',
-    salesAppeal,
-    salesTone,
-    salesTechnique,
-    extraChatKnowledge,
-    mansionData,
-  });
-
-  // 知識設計（ペルソナ／情報マトリクス／想定問答）による回答制御を末尾に足す。
-  // 未導入なら空文字が返るので、これまでどおり動作する。
-  const guard = await buildKnowledgeGuard();
-  return base + guard;
-}
 
 // ── 過去の会話サマリーを付け足す ────────────────────────────
 async function withPastContext(systemPrompt: string, browserId?: string): Promise<string> {
@@ -154,7 +75,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const systemPrompt = await withPastContext(await getSystemPrompt(characterId), browserId);
+    const systemPrompt = await withPastContext(await buildChatPrompt(characterId), browserId);
 
     const anthropicRes = await fetch(ANTHROPIC_URL, {
       method: 'POST',

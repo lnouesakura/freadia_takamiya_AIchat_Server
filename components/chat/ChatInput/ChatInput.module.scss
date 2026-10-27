@@ -2,102 +2,86 @@
 @use '../../../styles/variables' as *;
 @use '../../../styles/mixins' as *;
 
-.wrapper {
-  position: sticky;
-  bottom: 0;
-  // background: #FAFAFA;
-  // backdrop-filter: blur(12px);
-  // border-top: 1px solid $cream-dark;
-  padding: 16px;
-  z-index: $z-input;
-}
-
-.inner {
-  width: 90%;
-  max-width: 860px;
-  margin: 0 auto;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-// ── Input box ─────────────────────────────────────
+// 白い角丸の入力バー（Figma node 1027:186）
 .inputBox {
+  flex-shrink: 0;
   width: 100%;
-  background: rgb(255, 255, 255, .3);
-  border-radius: 60px;
-  padding: 12px max(2.5%, 10px);
+  min-height: 37px;
+  background: $white;
+  border-radius: $chat-radius;
+  padding: 7px 12px 7px 19px;
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
+  align-items: center;
   gap: 8px;
-  // transition: border-color 0.2s ease, box-shadow 0.2s ease;
-
 }
 
-// 録音中：枠が赤くパルス
-// .inputBoxListening {
-  // border-color: #ef4444;
-  // box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
-  // animation: listeningPulse 1.5s ease-in-out infinite;
-// }
-
-@keyframes listeningPulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
-  }
-
-  50% {
-    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.05);
-  }
+// 録音中だけ枠をうっすら赤く
+.inputBoxListening {
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, .35);
 }
 
 .textarea {
-  width: 90%;
+  flex: 1;
+  min-width: 0;
   border: none;
   outline: none;
   resize: none;
-  font-size: 14px;
-  font-family: $font-serif-jp;
-  color: $charcoal;
   background: transparent;
+  font-family: $font-sans;
+  font-size: 11px;
+  letter-spacing: -0.05em;
   line-height: 1.6;
-  min-height: 24px;
+  color: $charcoal;
+  min-height: 23px;
   max-height: 140px;
   overflow-y: auto;
+  padding: 2px 0;
 
-  &::placeholder {
-    color: $stone-light;
-  }
+  &::placeholder { color: $chat-placeholder; }
 }
 
-
-.btnBox{
+// ── 送信ボタン ────────────────────────────────────
+.sendBtn {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  padding: 0;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity .2s ease, transform .2s ease;
+
+  &:disabled {
+    opacity: .45;
+    cursor: default;
+  }
+
+  &:not(:disabled):hover { transform: translateY(-1px); }
+
+  @include focus-ring;
 }
 
-// ── マイクボタン（inputBox内） ────────────────────
+// ── マイクボタン（任意表示） ──────────────────────
 .micBtn {
-  width: 30px;
-  height: 30px;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
   cursor: pointer;
-  background: rgba($stone-light, 0.4);
+  background: rgba($stone-light, .35);
   color: $stone;
-  transition: all 0.2s;
+  transition: all .2s;
 
   &:hover {
-    background: rgba($gold, 0.15);
-    color: $gold-dark;
+    background: rgba($chat-tan, .2);
+    color: $chat-tan;
   }
 
   @include focus-ring;
@@ -106,15 +90,10 @@
 .micBtnActive {
   background: #ef4444;
   color: $white;
-  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2);
 
-  &:hover {
-    background: #dc2626;
-    color: $white;
-  }
+  &:hover { background: #dc2626; color: $white; }
 }
 
-// 録音中の波形アニメーション
 .recordingWave {
   display: flex;
   align-items: center;
@@ -125,78 +104,15 @@
     width: 3px;
     border-radius: 2px;
     background: $white;
-    animation: voiceWave 0.8s ease-in-out infinite;
+    animation: voiceWave .8s ease-in-out infinite;
 
-    &:nth-child(1) {
-      height: 5px;
-      animation-delay: 0s;
-    }
-
-    &:nth-child(2) {
-      height: 9px;
-      animation-delay: 0.15s;
-    }
-
-    &:nth-child(3) {
-      height: 5px;
-      animation-delay: 0.3s;
-    }
+    &:nth-child(1) { height: 5px; animation-delay: 0s; }
+    &:nth-child(2) { height: 9px; animation-delay: .15s; }
+    &:nth-child(3) { height: 5px; animation-delay: .3s; }
   }
 }
 
 @keyframes voiceWave {
-
-  0%,
-  100% {
-    transform: scaleY(0.5);
-    opacity: 0.7;
-  }
-
-  50% {
-    transform: scaleY(1);
-    opacity: 1;
-  }
-}
-
-
-// ── 送信ボタン ────────────────────────────────────
-.sendBtn {
-  width: 30px;
-  aspect-ratio: 1 / 1;
-  border-radius: 50%;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  >img{
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    object-position: center;
-  }
-
-}
-
-.sendBtnActive {
-  cursor: pointer;
-
-  &:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba($gold, 0.45);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-}
-
-// ── ヒント ────────────────────────────────────────
-.hint {
-  max-width: 860px;
-  margin: 8px auto 0;
-  text-align: center;
-  font-size: 11px;
-  color: $stone;
-  font-family: $font-serif-jp;
+  0%, 100% { transform: scaleY(.5); opacity: .7; }
+  50%      { transform: scaleY(1);  opacity: 1; }
 }

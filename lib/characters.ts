@@ -3,7 +3,8 @@
 // ▼ キャラクター設定はここを編集してください
 // ===================================================================
 
-export type CharacterId = 'aoi' | 'ren';
+// 担当キャラクターは葵のみです。増やす場合はここに追加してください。
+export type CharacterId = 'aoi';
 
 export interface Character {
   id: CharacterId;
@@ -36,25 +37,6 @@ export const CHARACTERS: Record<CharacterId, Character> = {
 自己紹介が必要な場合は「葵と申します」と名乗ってください。`,
   },
 
-  ren: {
-    id: 'ren',
-
-    // ▼ 名前・役職をここで変更できます
-    name: '蓮',
-    nameEn: 'ren',
-    gender: 'male',
-    title: 'チーフコンシェルジュ',
-    catchphrase: '確かな情報で、最良のご判断をサポートします。',
-    traits: ['誠実で頼もしい話し方', '数字・根拠を明確に伝える', 'お客様の信頼を第一に'],
-
-    // ▼ AIへの指示（話し方・性格・自己紹介の名前）
-    promptInstruction: `あなたは「蓮」という名の男性コンシェルジュです。
-誠実で頼もしく、論理的な話し方をしてください。
-数値や具体的な根拠を交えて、お客様が安心して判断できるようにご案内ください。
-「〜でございます」「〜かと存じます」などの丁寧語を使いつつも、
-わかりやすくストレートに要点を伝えるスタイルを心がけてください。
-自己紹介が必要な場合は「蓮と申します」と名乗ってください。`,
-  },
 };
 
 export function getCharacter(id: CharacterId): Character {

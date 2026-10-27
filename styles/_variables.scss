@@ -30,6 +30,19 @@ $font-nunito-sans: "Nunito Sans", sans-serif;
 $font-ipa: var(--font-ipa-gothic), sans-serif;
 $font-jost: "Jost", sans-serif;
 
+// ── チャットウィジェット ──────────────────────────
+// Figma「F656_フリーディア大楠」コーディング用（node 1027:18）より。
+// 色を変えたいときは、まずここを書き換えてください。
+$chat-tan: #B09372;                               // ヘッダーバー・質問ボタン
+$chat-tan-soft: rgba(176, 147, 114, 0.3);         // お客様の吹き出し
+$chat-panel: #E9E9E9;                             // パネルの地色
+$chat-placeholder: #CECECE;                       // 入力欄のうすい文字
+$chat-radius: 10px;                               // パネル・吹き出し共通の角丸
+$chat-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+$chat-pad: 24px;                                  // パネル左右の余白
+$chat-col: 340px;                                 // 会話欄の幅（通常表示）
+$chat-col-wide: 541px;                            // 会話欄の幅（拡大表示・画像なし）
+
 // ── Spacing ──────────────────────────────────────
 $radius-sm: 6px;
 $radius-md: 8px;

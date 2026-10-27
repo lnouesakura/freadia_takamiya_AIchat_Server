@@ -257,9 +257,8 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.FISH_AUDIO_API_KEY;
     if (!apiKey) return NextResponse.json({ error: 'Fish Audio API key not configured' }, { status: 500 });
 
-    const referenceId = characterId === 'ren'
-      ? process.env.FISH_AUDIO_VOICE_REN
-      : process.env.FISH_AUDIO_VOICE_AOI;
+    // 担当キャラクターは葵のみ
+    const referenceId = process.env.FISH_AUDIO_VOICE_AOI;
 
     if (!referenceId) return NextResponse.json({ error: 'Voice ID not configured' }, { status: 500 });
 

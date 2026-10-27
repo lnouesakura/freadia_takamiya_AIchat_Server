@@ -3,6 +3,7 @@
 // app/admin/sales-prompt/page.tsx
 import { useEffect, useState } from 'react';
 import PageHeader from '@/components/admin/PageHeader/PageHeader';
+import PromptPanel from './PromptPanel';
 import styles from './page.module.scss';
 
 interface SalesSection {
@@ -27,6 +28,8 @@ export default function SalesPromptPage() {
   const [saving, setSaving]       = useState(false);
   const [savedKey, setSavedKey]   = useState('');
   const [loading, setLoading]     = useState(true);
+  // AI自身の振る舞いを決める内容なので、「AIへの指示」をここに置いています
+  const [tab, setTab]             = useState<'settings' | 'prompt'>('settings');
 
   useEffect(() => {
     fetch('/api/admin/sales-prompt').then(r => r.json()).then(d => {
@@ -58,6 +61,17 @@ export default function SalesPromptPage() {
     <div className={styles.shell}>
       <PageHeader title="キャラクター設計" subtitle="AIの話し方・推しポイント・ヒアリング方針を決めます" />
 
+      <div className={styles.tabs}>
+        {([['settings', '設定'], ['prompt', 'AIへの指示']] as ['settings' | 'prompt', string][])
+          .map(([k, label]) => (
+            <button key={k} type="button"
+              className={`${styles.tab} ${tab === k ? styles.tabActive : ''}`}
+              onClick={() => setTab(k)}>{label}</button>
+          ))}
+      </div>
+
+      {tab === 'prompt' ? <PromptPanel /> : (
+      <>
       <div className={styles.notice}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
         <p>物件情報（事実）とは別に、<strong>営業ノウハウ・トーク戦略</strong>を設定できます。ここで設定した内容に沿ってAIが接客します。</p>
@@ -126,6 +140,8 @@ export default function SalesPromptPage() {
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

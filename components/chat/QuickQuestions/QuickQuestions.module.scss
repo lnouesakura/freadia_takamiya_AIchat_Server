@@ -2,47 +2,99 @@
 @use '../../../styles/variables' as *;
 @use '../../../styles/mixins' as *;
 
+$ease: cubic-bezier(.22, .61, .36, 1);
+
 .wrapper {
-  width: 90%;
-  margin: 0 auto;
-  padding: 4px 0 12px;
+  width: 100%;
+  flex-shrink: 0;
+  padding-bottom: 19px;
+  max-height: 260px;
+  opacity: 1;
+  overflow: hidden;
+  transition:
+    max-height .4s $ease,
+    opacity .25s ease,
+    padding-bottom .4s $ease;
+}
+
+// お客様が話しかけたあと、すっと畳みます
+.wrapperHidden {
+  max-height: 0;
+  opacity: 0;
+  padding-bottom: 0;
+  pointer-events: none;
 }
 
 .label {
+  margin-bottom: 13px;
+  font-family: $font-sans;
+  font-weight: 700;
   font-size: 11px;
-  color: #373737;
-  letter-spacing: 0.15em;
-  margin-bottom: 10px;
-  font-family: $font-serif-jp;
+  // Figmaは -0.55px ですが、太字だと字が重なって読みにくくなるため詰めていません
+  letter-spacing: normal;
+  color: #000;
 }
 
+// 通常表示：2列（Figma node 1027:168〜1027:185）
+//
+// 列の数そのものは途中の形を作れないので、並べ替わる瞬間だけ
+// ふわっと出し直しています。2列と3列でアニメーションの名前を
+// 分けているのは、どちらに切り替えても動かすためです。
 .list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 15px;
+  animation: chipsNarrow .38s $ease both;
+}
+
+// 拡大表示：3列（Figma node 1027:387〜1027:404）
+.listWide {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px 14px;
+  animation: chipsWide .38s $ease both;
+}
+
+@keyframes chipsNarrow {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes chipsWide {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .chip {
-  padding: 7px 14px;
-  background: #FAFAFA;
-  border: 1px solid #4C4948;
-  border-radius: $radius-full;
-  font-size: 12px;
-  color: #4C4948;
-  font-family: $font-serif-jp;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: $chat-radius;
+  background: $chat-tan;
+  color: $white;
+  font-family: $font-sans;
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: center;
   cursor: pointer;
-  transition: all .5s ease;
+  transition: background .25s ease, opacity .25s ease;
 
-  &:hover:not(:disabled) {
-    border-color: #4C4948;
-    color: #FAFAFA;
-    background: #4C4948;
-  }
+  &:hover:not(:disabled) { background: #9B8164; }
 
   &:disabled {
-    opacity: 0.5;
+    opacity: .5;
     cursor: not-allowed;
   }
 
   @include focus-ring;
+}
+
+@media (max-width: $bp-sm) {
+  .list,
+  .listWide { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wrapper { transition-duration: .01ms; }
+  .list,
+  .listWide { animation: none; opacity: 1; }
 }
