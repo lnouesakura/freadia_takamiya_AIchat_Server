@@ -149,8 +149,26 @@ export default function ChatMessages({
 }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
 
+  // 新しい発言が来たら、会話欄をいちばん下まで送ります。
+  //
+  // 以前は scrollIntoView を使っていましたが、これはページ全体まで
+  // スクロールさせてしまいます。物件サイトに iframe で貼ると、窓の高さが
+  // 53px しかない状態（楕円ボタンだけのとき）でも中の文書がずれて、
+  // ボタンの上が切れて見える原因になっていました。
+  // スクロールできる親だけを探して、そこだけを動かします。
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const end = endRef.current;
+    if (!end) return;
+
+    let el: HTMLElement | null = end.parentElement;
+    while (el) {
+      const oy = getComputedStyle(el).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) break;
+      el = el.parentElement;
+    }
+    if (!el) return;
+
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages, isLoading]);
 
   const AssistantIcon = character.id === 'aoi' ? FemaleIcon : MaleIcon;

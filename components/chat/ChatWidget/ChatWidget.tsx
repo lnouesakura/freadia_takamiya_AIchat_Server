@@ -109,7 +109,16 @@ export default function ChatWidget({
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    setEmbedded(window.parent !== window);
+    const inFrame = window.parent !== window;
+    setEmbedded(inFrame);
+
+    // iframe で貼られているときは、窓の中の文書が動かないようにします。
+    // 窓は楕円ボタンぶん（53px）しかないことがあり、少しでもずれると
+    // ボタンの上が切れて見えます。中身は会話欄だけがスクロールします。
+    if (inFrame) {
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+    }
 
     // 幅の狭い画面では、左に画像を出す2段組みにしません（styles の $bp-sm と同じ値）
     const mq = window.matchMedia('(max-width: 640px)');
