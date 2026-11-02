@@ -9,6 +9,7 @@
 //
 // 情報を入れる作業と同じ場所にあるべきなので、情報登録のタブに置いています。
 import { useEffect, useRef, useState } from 'react';
+import { useFileDrop } from '@/hooks/useFileDrop';
 import styles from './page.module.scss';
 
 type Snapshot = {
@@ -79,7 +80,7 @@ function ExportPanel({ onDone }: { onDone: () => void }) {
   const [error, setError] = useState('');
   const [file, setFile] = useState<{ name: string; data: unknown; counts?: Record<string, number> } | null>(null);
   // ドラッグで重ねている最中かどうか（枠の色を変えるだけ）
-  const [over, setOver] = useState(false);
+  const drop = useFileDrop((f) => pick(f));
   // ブラウザ既定の小さな「ファイルを選択」ボタンは隠し、こちらのボタンから開きます
   const fileRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<'merge' | 'replace'>('merge');
@@ -195,15 +196,8 @@ function ExportPanel({ onDone }: { onDone: () => void }) {
         />
 
         <div
-          className={`${styles.dropZone} ${over ? styles.dropOver : ''} ${file ? styles.dropPicked : ''}`}
-          onDragOver={(e) => { e.preventDefault(); setOver(true); }}
-          onDragLeave={() => setOver(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setOver(false);
-            const f = e.dataTransfer.files?.[0];
-            if (f) pick(f);
-          }}
+          className={`${styles.dropZone} ${drop.over ? styles.dropOver : ''} ${file ? styles.dropPicked : ''}`}
+          {...drop.handlers}
         >
           {file ? (
             <>

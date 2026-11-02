@@ -123,6 +123,40 @@ export default function ChatWidget({
     if (inFrame) {
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+
+      // 会話欄の端まで来たあと、そのまま後ろのサイトが動いてしまうのを止めます。
+      //
+      // ブラウザは「この要素でこれ以上スクロールできない」と分かると、
+      // 1つ外側へ送ります。窓の中の文書も動けないので、最後は窓の外＝
+      // 貼り付け先のサイトへ届き、ページごと動いてしまいます。
+      document.documentElement.style.overscrollBehavior = 'none';
+      document.body.style.overscrollBehavior = 'none';
+    }
+
+    // ただし overscroll-behavior だけでは足りません。
+    //
+    // ヘッダーの帯や入力欄のように「そもそもスクロールできない場所」の上で
+    // 回したときは、ブラウザがその場で窓の外へ送ってしまい、
+    // overscroll-behavior は効きません（実測で確認済み）。
+    // そこで、中にスクロールできる場所が無いときだけ、ここで打ち切ります。
+    //
+    // 中にスクロールできる場所があるときは何もしません。
+    // そちらは overscroll-behavior: contain が端で止めてくれます。
+    const canScrollInside = (start: EventTarget | null): boolean => {
+      let n = start instanceof Element ? start : null;
+      while (n && n !== document.body && n !== document.documentElement) {
+        const oy = getComputedStyle(n).overflowY;
+        if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight) return true;
+        n = n.parentElement;
+      }
+      return false;
+    };
+    const keepInside = (e: Event) => {
+      if (!canScrollInside(e.target)) e.preventDefault();
+    };
+    if (inFrame) {
+      document.addEventListener('wheel', keepInside, { passive: false });
+      document.addEventListener('touchmove', keepInside, { passive: false });
     }
 
     // 同意済みかどうか。
@@ -172,7 +206,11 @@ export default function ChatWidget({
       setMessages([buildGreeting(title), ...history]);
     });
 
-    return () => mq.removeEventListener('change', syncNarrow);
+    return () => {
+      mq.removeEventListener('change', syncNarrow);
+      document.removeEventListener('wheel', keepInside);
+      document.removeEventListener('touchmove', keepInside);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

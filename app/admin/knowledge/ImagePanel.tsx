@@ -12,6 +12,7 @@
 // 「どんなときに出すか」と「ことば」をAIへの指示に載せます。
 // お客様の質問に合うとAIが判断したとき、回答の中に画像が入ります。
 import { useEffect, useRef, useState } from 'react';
+import { useFileDrop } from '@/hooks/useFileDrop';
 import styles from './page.module.scss';
 
 type Img = {
@@ -75,7 +76,6 @@ export default function ImagePanel({ reloadKey, onDone }: { reloadKey: number; o
   const [caption, setCaption] = useState('');
   const [note, setNote] = useState('');
   const [tags, setTags] = useState('');
-  const [over, setOver] = useState(false);
 
   /** いま編集している画像のid。空なら誰も編集していません */
   const [editing, setEditing] = useState('');
@@ -107,6 +107,9 @@ export default function ImagePanel({ reloadKey, onDone }: { reloadKey: number; o
       setError(e instanceof Error ? e.message : '画像を読み取れませんでした');
     }
   };
+
+  // ドラッグして置ける枠。色の切り替えは hooks/useFileDrop.ts が見ています
+  const drop = useFileDrop((f) => { void pick(f); });
 
   const clearForm = () => {
     setPending(null); setPreview(''); setTitle(''); setCaption(''); setNote(''); setTags('');
@@ -273,10 +276,8 @@ export default function ImagePanel({ reloadKey, onDone }: { reloadKey: number; o
           </div>
         ) : (
           <div
-            className={`${styles.dropZone} ${over ? styles.dropOver : ''}`}
-            onDragOver={(e) => { e.preventDefault(); setOver(true); }}
-            onDragLeave={() => setOver(false)}
-            onDrop={(e) => { e.preventDefault(); setOver(false); const f = e.dataTransfer.files?.[0]; if (f) pick(f); }}
+            className={`${styles.dropZone} ${drop.over ? styles.dropOver : ''}`}
+            {...drop.handlers}
           >
             <button type="button" className={styles.dropBtn} onClick={() => fileRef.current?.click()}>
               画像を選ぶ

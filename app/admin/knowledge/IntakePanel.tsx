@@ -11,6 +11,7 @@
 // AIが読み違えたまま登録されると、そのままAIの回答根拠になるためです。
 import { useRef, useState } from 'react';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
+import { useFileDrop } from '@/hooks/useFileDrop';
 import { headingColor } from '@/lib/propertySections';
 import styles from './page.module.scss';
 
@@ -545,7 +546,7 @@ function FileInput({ busy, onSubmit }: { busy: boolean; onSubmit: (p: object) =>
   const [isPdf, setIsPdf] = useState(false);
   const [pending, setPending] = useState<{ base64: string; mediaType: string } | null>(null);
   // ドラッグで重ねている最中かどうか（枠の色を変えるだけ）
-  const [over, setOver] = useState(false);
+  const drop = useFileDrop((f) => read(f));
   // ブラウザ既定の小さな「ファイルを選択」ボタンは隠し、
   // こちらのボタンから開きます。
   const fileRef = useRef<HTMLInputElement>(null);
@@ -586,15 +587,8 @@ function FileInput({ busy, onSubmit }: { busy: boolean; onSubmit: (p: object) =>
       />
 
       <div
-        className={`${styles.dropZone} ${over ? styles.dropOver : ''} ${name ? styles.dropPicked : ''}`}
-        onDragOver={(e) => { e.preventDefault(); setOver(true); }}
-        onDragLeave={() => setOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setOver(false);
-          const f = e.dataTransfer.files?.[0];
-          if (f) read(f);
-        }}
+        className={`${styles.dropZone} ${drop.over ? styles.dropOver : ''} ${name ? styles.dropPicked : ''}`}
+        {...drop.handlers}
       >
         {name ? (
           <>

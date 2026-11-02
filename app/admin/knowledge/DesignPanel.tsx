@@ -7,6 +7,7 @@
 // ここで入れるのは「設計の骨格」です。ペルソナ・情報マトリクスの枠組みと、
 // 想定問答の一覧。中身（物件の事実）は「取り込む」タブから入れます。
 import { useRef, useState } from 'react';
+import { useFileDrop } from '@/hooks/useFileDrop';
 import styles from './page.module.scss';
 
 export interface Design {
@@ -26,11 +27,6 @@ export default function DesignPanel({ design, onDone }:
   const [faqName, setFaqName] = useState('');
   const [busy, setBusy] = useState(false);
   const [prune, setPrune] = useState(false);
-  /** ドラッグで重ねているのがどちらか。'' なら重ねていません */
-  const [over, setOver] = useState<'' | 'matrix' | 'faq'>('');
-
-  const matrixRef = useRef<HTMLInputElement>(null);
-  const faqRef = useRef<HTMLInputElement>(null);
   const [result, setResult] = useState<{
     ok?: boolean;
     errors?: string[];
@@ -115,55 +111,18 @@ export default function DesignPanel({ design, onDone }:
 
       {/* 2つを半分ずつ並べます。見た目は他のタブのファイル選択と同じです */}
       <div className={styles.uploadRow}>
-        {([
-          ['matrix', '情報マトリクス', 'knowledge-matrix.json', matrixName, matrixRef],
-          ['faq', '想定問答集', 'faq-seed.json', faqName, faqRef],
-        ] as const).map(([kind, label, hint, name, ref]) => (
-          <div key={kind} className={styles.uploadCol}>
-            <p className={styles.uploadLabel}>{label}</p>
-
-            <input
-              ref={ref}
-              type="file"
-              accept="application/json,.json"
-              className={styles.hiddenFile}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) readFile(f, kind);
-                e.target.value = '';
-              }}
-            />
-
-            <div
-              className={`${styles.dropZone} ${over === kind ? styles.dropOver : ''} ${name ? styles.dropPicked : ''}`}
-              onDragOver={(e) => { e.preventDefault(); setOver(kind); }}
-              onDragLeave={() => setOver('')}
-              onDrop={(e) => {
-                e.preventDefault();
-                setOver('');
-                const f = e.dataTransfer.files?.[0];
-                if (f) readFile(f, kind);
-              }}
-            >
-              {name ? (
-                <>
-                  <p className={styles.dropPickedName}>{name}</p>
-                  <button type="button" className={styles.dropBtnSub} onClick={() => ref.current?.click()}>
-                    別のファイルにする
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button type="button" className={styles.dropBtn} onClick={() => ref.current?.click()}>
-                    ファイルを選ぶ
-                  </button>
-                  <p className={styles.dropLead}>ここにドラッグしても読み込めます</p>
-                  <p className={styles.dropHint}>{hint}</p>
-                </>
-              )}
-            </div>
-          </div>
-        ))}
+        <JsonDrop
+          label="情報マトリクス"
+          hint="knowledge-matrix.json"
+          name={matrixName}
+          onFile={(f) => readFile(f, 'matrix')}
+        />
+        <JsonDrop
+          label="想定問答集"
+          hint="faq-seed.json"
+          name={faqName}
+          onFile={(f) => readFile(f, 'faq')}
+        />
       </div>
 
       <p className={styles.note}>
@@ -214,6 +173,66 @@ export default function DesignPanel({ design, onDone }:
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ───────────── JSONを1つ置く枠 ───────────── */
+
+/**
+ * 情報マトリクスと想定問答集で同じものを使います。
+ *
+ * 2つ並ぶので、ドラッグ中かどうかはそれぞれが自分で持ちます。
+ * 色の付け外しは hooks/useFileDrop.ts に任せています
+ * （枠の中のボタンへ移ったときに色が消えないようにするため）。
+ */
+function JsonDrop({ label, hint, name, onFile }: {
+  label: string;
+  hint: string;
+  name: string;
+  onFile: (file: File) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const drop = useFileDrop(onFile);
+
+  return (
+    <div className={styles.uploadCol}>
+      <p className={styles.uploadLabel}>{label}</p>
+
+      <input
+        ref={ref}
+        type="file"
+        accept="application/json,.json"
+        className={styles.hiddenFile}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onFile(f);
+          // 同じファイルをもう一度選んでも反応するように空にしておく
+          e.target.value = '';
+        }}
+      />
+
+      <div
+        className={`${styles.dropZone} ${drop.over ? styles.dropOver : ''} ${name ? styles.dropPicked : ''}`}
+        {...drop.handlers}
+      >
+        {name ? (
+          <>
+            <p className={styles.dropPickedName}>{name}</p>
+            <button type="button" className={styles.dropBtnSub} onClick={() => ref.current?.click()}>
+              別のファイルにする
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className={styles.dropBtn} onClick={() => ref.current?.click()}>
+              ファイルを選ぶ
+            </button>
+            <p className={styles.dropLead}>ここにドラッグしても読み込めます</p>
+            <p className={styles.dropHint}>{hint}</p>
+          </>
+        )}
+      </div>
     </div>
   );
 }

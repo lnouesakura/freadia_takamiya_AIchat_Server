@@ -756,10 +756,17 @@
   transition: border-color .2s ease, background .2s ease;
 }
 
-// ドラッグで重ねているあいだ
+// ドラッグで重ねているあいだ。
+// もとは点線の色が変わるだけで、置ける場所かどうかが分かりにくいものでした。
+// 地の色をはっきり変え、枠を実線にしています。浮き上がらせてはいません。
 .dropOver {
-  border-color: $gold;
-  background: rgba($gold, .08);
+  border-color: $gold-dark;
+  border-style: solid;
+  background: rgba($gold, .22);
+
+  // 中の文字も地の色に合わせて濃くします
+  .dropLead { color: $gold-dark; }
+  .dropHint { color: $gold-dark; }
 }
 
 // ファイルを選んだあと

@@ -35,6 +35,8 @@
   min-height: 23px;
   max-height: 140px;
   overflow-y: auto;
+  // 端まで来ても、後ろのサイトへスクロールを渡しません
+  overscroll-behavior: contain;
   padding: 2px 0;
 
   &::placeholder { color: $chat-placeholder; }
