@@ -13,14 +13,21 @@
 //   3. DB SalesPrompt           推しポイント／トーン／ヒアリング方針
 //   4. DB KnowledgeDoc          追加の接客情報（分類が chat のもの）
 //   5. DB PropertyInfo          物件情報（分類が property の資料を末尾に連結）
-//   6. lib/knowledgeGuard.ts    法令上の制約・回答制御・禁句・段階と橋渡し
+//   6. DB PromptOverride        管理画面で編集された項目の差し替え
+//   7. DB PropertyImage         会話の中でお見せできる画像の一覧
+//   8. lib/knowledgeGuard.ts    法令上の制約・回答制御・禁句・段階と橋渡し
 //
-// 6を最後に置いているのは意図したものです。法令まわりの制約と回答の
+// 8を最後に置いているのは意図したものです。法令まわりの制約と回答の
 // 可否判定を、他の指示より後に読ませるためです。
+//
+// 6は差し替えなので、1〜5を組み立てたあとに当てます。
+// 編集されていない項目は1文字も変わりません。
 import { prisma } from '@/lib/prisma';
 import { CHARACTERS, CharacterId } from '@/lib/characters';
 import { buildSystemPrompt } from '@/lib/systemPrompt';
 import { buildKnowledgeGuard } from '@/lib/knowledgeGuard';
+import { applyOverrides } from '@/lib/promptOverrides';
+import { buildImageGuide } from '@/lib/propertyImages';
 
 export async function buildChatPrompt(characterId?: string): Promise<string> {
   let propertyTitle = 'AIコンシェルジュ';
@@ -93,8 +100,16 @@ export async function buildChatPrompt(characterId?: string): Promise<string> {
     mansionData,
   });
 
+  // 管理画面「AIへの指示」で編集された項目があれば、そこだけ差し替える。
+  // 編集が無ければ1文字も変わらない。
+  const edited = await applyOverrides(base);
+
   // 知識設計（ペルソナ／情報マトリクス／想定問答）による回答制御を末尾に足す。
   // 未導入なら空文字が返るので、これまでどおり動作する。
   const guard = await buildKnowledgeGuard();
-  return base + guard;
+
+  // 会話の中でお見せできる画像の一覧。登録が無ければ空文字。
+  const images = await buildImageGuide();
+
+  return edited + images + guard;
 }

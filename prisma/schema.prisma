@@ -280,3 +280,55 @@ model Snapshot {
   @@index([createdAt])
   @@map("snapshots")
 }
+
+/// 管理画面「AIへの指示」で編集した項目。
+///
+/// コード（lib/characters.ts / lib/systemPrompt.ts）に書かれた文章が初期値で、
+/// ここに行があるものだけ、その本文で差し替えてチャットに渡します。
+/// 行を消せば初期値に戻ります。編集していない項目には、
+/// 今後こちらがコードを改善した分がそのまま届きます。
+model PromptOverride {
+  /// 差し替える項目の見出し名（【】や # を外したもの）
+  heading   String   @id
+  /// 差し替える本文
+  body      String
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("prompt_overrides")
+}
+
+/// 会話の中でお見せする画像（間取り図・パースなど）。
+///
+/// このアプリには永続ディスクが無く、ファイルとして置くと
+/// 再デプロイのたびに消えてしまうため、データベースに入れています。
+/// アップロード時にブラウザ側で縮小しているので、1枚あたり数百KBです。
+model PropertyImage {
+  id        String   @id @default(cuid())
+  /// 管理画面での名前（例「Aタイプ 間取り図」）
+  title     String
+  /// 画像の下に出る説明書き（例「間取り図」）
+  caption   String?
+  /// どんなときに出す画像かの説明。AIへの指示に入ります
+  note      String?
+  /// 検索用のことば（例 間取り / Aタイプ / 3LDK）
+  tags      String[]
+  /// image/jpeg など
+  mediaType String
+  width     Int
+  height    Int
+  /// 画像の中身
+  bytes     Bytes
+  /// 画像の大きさ（バイト）。一覧に出します
+  size      Int
+  /// 並び順。小さいほど先
+  sort      Int      @default(0)
+  /// AIに渡すかどうか。外すと会話には出てきません
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@index([enabled, sort])
+  @@map("property_images")
+}

@@ -88,6 +88,15 @@ export default function IntakePanel({ onApplied }: { onApplied: () => void }) {
   const [sectionMode, setSectionMode] = useState<Record<string, Mode>>({});
   const [docOn, setDocOn] = useState(true);
 
+  /** 「AIでまとめる」の実行中（項目ごと） */
+  const [merging, setMerging] = useState<Record<string, boolean>>({});
+  /** まとめた結果の説明（項目ごと） */
+  const [mergeNote, setMergeNote] = useState<Record<string, string>>({});
+  /** まとめる前の内容の控え。「元に戻す」で使います（項目ごと） */
+  const [preMerge, setPreMerge] = useState<Record<string, string>>({});
+  /** まとめる前の追記・上書きの指定。物件情報を戻すときに使います */
+  const [preMergeMode, setPreMergeMode] = useState<Record<string, Mode>>({});
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [applied, setApplied] = useState('');
@@ -280,6 +289,65 @@ export default function IntakePanel({ onApplied }: { onApplied: () => void }) {
     setMatrix([]); setSections([]); setDoc(null);
     setMatrixOn({}); setSectionOn({}); setSectionMode({});
     setNotes([]); setError(''); setApplied('');
+    setMerging({}); setMergeNote({}); setPreMerge({}); setPreMergeMode({});
+  };
+
+  /** 控えを捨てる（「元に戻す」を押したあとや、戻す必要が無くなったとき） */
+  const dropUndo = (key: string) => {
+    setPreMerge((p) => { const n = { ...p }; delete n[key]; return n; });
+    setPreMergeMode((p) => { const n = { ...p }; delete n[key]; return n; });
+    setMergeNote((p) => ({ ...p, [key]: '' }));
+  };
+
+  /**
+   * 「AIでまとめる」
+   *
+   * 必要情報のスロットは反映すると中身がまるごと差し替わるため、
+   * 新しい候補に書かれていない既存の記述は、そのままでは失われます。
+   * ここで既存と新規を1つにまとめてから、編集欄へ戻します。
+   * 保存はしません。人が見て直してから「反映する」を押したときだけ保存されます。
+   */
+  const runMerge = async (
+    key: string,
+    label: string,
+    existing: string,
+    incoming: string,
+    onDone: (merged: string) => void,
+  ) => {
+    setMerging((p) => ({ ...p, [key]: true }));
+    setMergeNote((p) => ({ ...p, [key]: '' }));
+    // まとめる前の内容を控えます。気に入らなければ「元に戻す」で戻せます。
+    setPreMerge((p) => ({ ...p, [key]: incoming }));
+    try {
+      const res = await fetch('/api/admin/intake/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label, existing, incoming }),
+      });
+      const d = await res.json();
+      if (!res.ok) {
+        // 内容は変えていないので、控えは捨てます（戻すものがありません）
+        setPreMerge((p) => { const n = { ...p }; delete n[key]; return n; });
+        setMergeNote((p) => ({ ...p, [key]: d.error || 'まとめられませんでした' }));
+        return;
+      }
+      onDone(String(d.merged || ''));
+
+      const bits: string[] = [];
+      if (d.kept?.length) bits.push(`今の内容から ${d.kept.length} 件を残しました`);
+      // 食い違っていたところは新しい内容に差し替えています。
+      // 何が変わったのかを出しておかないと、黙って上書きしたのと同じになります。
+      if (d.replaced?.length) bits.push(`新しい内容に差し替え：${d.replaced.join(' ／ ')}`);
+      setMergeNote((p) => ({
+        ...p,
+        [key]: bits.length ? bits.join('。') : 'まとめました。内容を確認してください',
+      }));
+    } catch {
+      setPreMerge((p) => { const n = { ...p }; delete n[key]; return n; });
+      setMergeNote((p) => ({ ...p, [key]: '通信に失敗しました' }));
+    } finally {
+      setMerging((p) => ({ ...p, [key]: false }));
+    }
   };
 
   return (
@@ -331,7 +399,8 @@ export default function IntakePanel({ onApplied }: { onApplied: () => void }) {
 
       {notes.length > 0 && (
         <div className={styles.warnBox}>
-          <p className={styles.boxTitle}>どの行き先にも当てはまらなかった情報</p>
+          {/* 読み取れなかった範囲と、行き先の決まらなかった情報の両方が入ります */}
+          <p className={styles.boxTitle}>確認していただきたいこと</p>
           <ul>{notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
         </div>
       )}
@@ -374,6 +443,23 @@ export default function IntakePanel({ onApplied }: { onApplied: () => void }) {
               onToggle={(k) => setMatrixOn((p) => ({ ...p, [k]: !p[k] }))}
               onToggleAll={(v) => setMatrixOn(Object.fromEntries(matrix.map((c) => [matrixKey(c), v])))}
               onEdit={(k, v) => setMatrix((prev) => prev.map((c) => (matrixKey(c) === k ? { ...c, value: v } : c)))}
+              merging={merging}
+              mergeNote={mergeNote}
+              preMerge={preMerge}
+              onMerge={(c) => runMerge(
+                matrixKey(c),
+                `${c.title}／${c.label}`,
+                c.existing,
+                c.value,
+                (v) => setMatrix((prev) => prev.map((x) => (matrixKey(x) === matrixKey(c) ? { ...x, value: v } : x))),
+              )}
+              onUndo={(c) => {
+                const k = matrixKey(c);
+                const back = preMerge[k];
+                if (back === undefined) return;
+                setMatrix((prev) => prev.map((x) => (matrixKey(x) === k ? { ...x, value: back } : x)));
+                dropUndo(k);
+              }}
             />
           )}
 
@@ -385,6 +471,33 @@ export default function IntakePanel({ onApplied }: { onApplied: () => void }) {
               onToggle={(s) => setSectionOn((p) => ({ ...p, [s]: !p[s] }))}
               onMode={(s, m) => setSectionMode((p) => ({ ...p, [s]: m }))}
               onEdit={(s, v) => setSections((prev) => prev.map((x) => (x.section === s ? { ...x, value: v } : x)))}
+              merging={merging}
+              mergeNote={mergeNote}
+              preMerge={preMerge}
+              onMerge={(s) => {
+                // 戻すときのために、いまの追記・上書きの指定も控えます
+                setPreMergeMode((p) => ({ ...p, [s.section]: sectionMode[s.section] || 'append' }));
+                runMerge(
+                  s.section,
+                  s.section,
+                  s.existing,
+                  s.value,
+                  (v) => {
+                    setSections((prev) => prev.map((x) => (x.section === s.section ? { ...x, value: v } : x)));
+                    // まとめた本文には既存の内容が入っています。
+                    // 追記のままだと同じ内容が二重になるため、上書きに切り替えます。
+                    setSectionMode((p) => ({ ...p, [s.section]: 'overwrite' }));
+                  },
+                );
+              }}
+              onUndo={(s) => {
+                const back = preMerge[s.section];
+                if (back === undefined) return;
+                setSections((prev) => prev.map((x) => (x.section === s.section ? { ...x, value: back } : x)));
+                const mode = preMergeMode[s.section];
+                if (mode) setSectionMode((p) => ({ ...p, [s.section]: mode }));
+                dropUndo(s.section);
+              }}
             />
           )}
 
@@ -424,11 +537,18 @@ export default function IntakePanel({ onApplied }: { onApplied: () => void }) {
 /** これを超えるPDFは、サーバー側でページごとに分けて読み取ります */
 const SPLIT_THRESHOLD = 24 * 1024 * 1024;
 
+const ACCEPT = '.pdf,.xlsx,.xls,.csv,.tsv,.md,.txt';
+
 function FileInput({ busy, onSubmit }: { busy: boolean; onSubmit: (p: object) => void }) {
   const [name, setName] = useState('');
   const [size, setSize] = useState(0);
   const [isPdf, setIsPdf] = useState(false);
   const [pending, setPending] = useState<{ base64: string; mediaType: string } | null>(null);
+  // ドラッグで重ねている最中かどうか（枠の色を変えるだけ）
+  const [over, setOver] = useState(false);
+  // ブラウザ既定の小さな「ファイルを選択」ボタンは隠し、
+  // こちらのボタンから開きます。
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const read = (file: File) => {
     const reader = new FileReader();
@@ -452,17 +572,48 @@ function FileInput({ busy, onSubmit }: { busy: boolean; onSubmit: (p: object) =>
         文字がアウトライン化されたPDFでも、ページを画像として読むので取り込めます。
         ページ数が多いPDFは時間がかかります（1〜2分ほど）。
       </p>
-      <label className={styles.upload}>
-        <span className={styles.uploadLabel}>ファイルを選ぶ</span>
-        <span className={styles.uploadHint}>pdf / xlsx / csv / md / txt</span>
-        <input type="file" accept=".pdf,.xlsx,.xls,.csv,.tsv,.md,.txt"
-          onChange={(e) => e.target.files?.[0] && read(e.target.files[0])} />
-        {name && (
-          <span className={styles.fileName}>
-            {name}（{(size / 1024 / 1024).toFixed(1)}MB）
-          </span>
+      <input
+        ref={fileRef}
+        type="file"
+        accept={ACCEPT}
+        className={styles.hiddenFile}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) read(f);
+          // 同じファイルをもう一度選んでも反応するように空にしておく
+          e.target.value = '';
+        }}
+      />
+
+      <div
+        className={`${styles.dropZone} ${over ? styles.dropOver : ''} ${name ? styles.dropPicked : ''}`}
+        onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setOver(false);
+          const f = e.dataTransfer.files?.[0];
+          if (f) read(f);
+        }}
+      >
+        {name ? (
+          <>
+            <p className={styles.dropPickedName}>{name}</p>
+            <p className={styles.dropPickedSize}>{(size / 1024 / 1024).toFixed(1)}MB</p>
+            <button type="button" className={styles.dropBtnSub} onClick={() => fileRef.current?.click()}>
+              別のファイルにする
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className={styles.dropBtn} onClick={() => fileRef.current?.click()}>
+              ファイルを選ぶ
+            </button>
+            <p className={styles.dropLead}>ここにファイルをドラッグしても読み込めます</p>
+            <p className={styles.dropHint}>pdf ／ xlsx ／ xls ／ csv ／ tsv ／ md ／ txt</p>
+          </>
         )}
-      </label>
+      </div>
 
       {willSplit && (
         <p className={styles.blockNote}>
@@ -652,14 +803,85 @@ function VerdictNote({ verdict, reason }: { verdict?: Verdict; reason?: string }
   );
 }
 
+/* ───────────── すでに登録されている内容の表示 ───────────── */
+
+/**
+ * いま登録されている内容を出します。
+ *
+ * 以前は先頭120文字で切っていたため、差し替えたときに何が消えるのかが
+ * 画面から分かりませんでした。ここで全文を開けるようにしています。
+ */
+function ExistingBlock({ text }: { text: string }) {
+  const body = text.trim();
+  if (!body) return null;
+
+  return (
+    <div className={styles.existingBox}>
+      <p className={styles.existingHead}>
+        <span className={styles.existingLabel}>現在の内容</span>
+        <span className={styles.existingLen}>{body.length.toLocaleString()} 文字</span>
+      </p>
+      <p className={styles.existingFull}>{body}</p>
+    </div>
+  );
+}
+
+/**
+ * 既存と新規をひとつにまとめるための操作。
+ *
+ * 「AIでまとめる」は、両方にしか無い記述を残し、食い違う数値は
+ * どちらも残して「※要確認」を付けます。どちらが正しいかは決めません。
+ * 「現在の内容を下に入れる」は、AIを使わず手で整理したいときに使います。
+ */
+function MergeBar({ existing, busy, note, undoable, onMerge, onCopy, onUndo }: {
+  existing: string;
+  busy: boolean;
+  note?: string;
+  /** まとめる前の内容を控えてあるか（戻せるか） */
+  undoable: boolean;
+  onMerge: () => void;
+  onCopy: () => void;
+  onUndo: () => void;
+}) {
+  if (!existing.trim()) return null;
+  return (
+    <>
+      <div className={styles.mergeBar}>
+        <button type="button" className={styles.mergeBtn} disabled={busy} onClick={onMerge}>
+          {busy ? 'まとめています…' : '内容をまとめて上書き'}
+        </button>
+        <button type="button" className={styles.linkBtn} disabled={busy} onClick={onCopy}>
+          現在の内容を下に入れる
+        </button>
+        {undoable && (
+          <button type="button" className={styles.undoBtn} disabled={busy} onClick={onUndo}>
+            元に戻す
+          </button>
+        )}
+        <span className={styles.mergeHint}>
+          今の内容にしか無いことは残し、食い違うところは新しい内容を採ります
+        </span>
+      </div>
+      {note && <p className={styles.mergeNote}>{note}</p>}
+    </>
+  );
+}
+
 /* ───────────── 行き先1：情報マトリクス ───────────── */
 
-function MatrixGroup({ items, on, onToggle, onToggleAll, onEdit }: {
+function MatrixGroup({
+  items, on, onToggle, onToggleAll, onEdit, merging, mergeNote, preMerge, onMerge, onUndo,
+}: {
   items: MatrixCandidate[];
   on: Record<string, boolean>;
   onToggle: (k: string) => void;
   onToggleAll: (v: boolean) => void;
   onEdit: (k: string, v: string) => void;
+  merging: Record<string, boolean>;
+  mergeNote: Record<string, string>;
+  preMerge: Record<string, string>;
+  onMerge: (c: MatrixCandidate) => void;
+  onUndo: (c: MatrixCandidate) => void;
 }) {
   const selected = items.filter((c) => on[matrixKey(c)]).length;
   const overwrites = items.filter((c) => on[matrixKey(c)] && c.existing.trim()).length;
@@ -679,7 +901,10 @@ function MatrixGroup({ items, on, onToggle, onToggleAll, onEdit }: {
       <div className={styles.destBody}>
         {overwrites > 0 && (
           <p className={styles.blockNote}>
-            選択中のうち {overwrites} 項目は、すでに登録されている内容を上書きします。
+            選択中のうち {overwrites} 項目は、すでに登録されている内容を
+            <strong>まるごと差し替え</strong>ます。
+            いまの内容に書いてあって新しい内容に無いことは、そのままだと消えます。
+            残したいときは「AIでまとめる」を押してください。
           </p>
         )}
         {items.map((c) => {
@@ -689,17 +914,22 @@ function MatrixGroup({ items, on, onToggle, onToggleAll, onEdit }: {
               <input type="checkbox" checked={!!on[k]} onChange={() => onToggle(k)} />
               <div className={styles.entryBody}>
                 <p className={styles.entryHead}>
-                  <span className={styles.code}>{c.code}#{c.index + 1}</span>
                   <span className={styles.entryTitle}>{c.title}</span>
                 </p>
                 <p className={styles.sub}>{c.label}</p>
                 <VerdictNote verdict={c.verdict} reason={c.reason} />
 
-                {c.existing.trim() && (
-                  <p className={styles.blockNote}>
-                    現在：{c.existing.slice(0, 120)}{c.existing.length > 120 ? '…' : ''}
-                  </p>
-                )}
+                <ExistingBlock text={c.existing} />
+
+                <MergeBar
+                  existing={c.existing}
+                  busy={!!merging[k]}
+                  note={mergeNote[k]}
+                  undoable={preMerge[k] !== undefined}
+                  onMerge={() => onMerge(c)}
+                  onCopy={() => onEdit(k, `${c.existing.trim()}\n${c.value.trim()}`)}
+                  onUndo={() => onUndo(c)}
+                />
 
                 <textarea className={styles.textarea} rows={3} value={c.value}
                   onChange={(e) => onEdit(k, e.target.value)} />
@@ -715,13 +945,20 @@ function MatrixGroup({ items, on, onToggle, onToggleAll, onEdit }: {
 
 /* ───────────── 行き先2：物件情報 ───────────── */
 
-function SectionGroup({ items, on, mode, onToggle, onMode, onEdit }: {
+function SectionGroup({
+  items, on, mode, onToggle, onMode, onEdit, merging, mergeNote, preMerge, onMerge, onUndo,
+}: {
   items: SectionCandidate[];
   on: Record<string, boolean>;
   mode: Record<string, Mode>;
   onToggle: (s: string) => void;
   onMode: (s: string, m: Mode) => void;
   onEdit: (s: string, v: string) => void;
+  merging: Record<string, boolean>;
+  mergeNote: Record<string, string>;
+  preMerge: Record<string, string>;
+  onMerge: (s: SectionCandidate) => void;
+  onUndo: (s: SectionCandidate) => void;
 }) {
   const selected = items.filter((s) => on[s.section]).length;
 
@@ -767,6 +1004,20 @@ function SectionGroup({ items, on, mode, onToggle, onMode, onEdit }: {
                       ? `現在の ${s.existing.length.toLocaleString()} 文字を、この内容で置き換えます`
                       : `現在の本文の末尾に追記します（既存 ${s.existing.length.toLocaleString()} 文字）`}
                   </p>
+                )}
+
+                <ExistingBlock text={s.existing} />
+
+                {m === 'overwrite' && (
+                  <MergeBar
+                    existing={s.existing}
+                    busy={!!merging[s.section]}
+                    note={mergeNote[s.section]}
+                    undoable={preMerge[s.section] !== undefined}
+                    onMerge={() => onMerge(s)}
+                    onCopy={() => onEdit(s.section, `${s.existing.trim()}\n${s.value.trim()}`)}
+                    onUndo={() => onUndo(s)}
+                  />
                 )}
 
                 <textarea className={styles.textarea} rows={4} value={s.value}

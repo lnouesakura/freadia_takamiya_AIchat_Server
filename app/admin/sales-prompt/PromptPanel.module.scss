@@ -100,3 +100,55 @@
 }
 .promptRaw { max-height: 70vh; overflow-y: auto; }
 .promptBlock { margin-top: 14px; max-height: 50vh; overflow-y: auto; }
+
+// ── 編集まわり ──────────────────────────────
+.okBox {
+  padding: 12px 16px; border-radius: $radius-md;
+  background: rgba($green-status, .12); border: 1px solid rgba($green-status, .4);
+  color: #2f7d4f; font-size: 12px; font-family: $font-serif-jp; line-height: 1.8;
+}
+
+.editedNote {
+  margin: 10px 0 0; padding: 11px 14px; border-radius: $radius-md;
+  background: rgba($gold, .07); border: 1px solid rgba($gold, .3);
+  font-size: 11px; line-height: 1.9; color: $gold-dark; font-family: $font-serif-jp;
+}
+
+.editedBadge {
+  flex-shrink: 0; display: inline-block; margin-right: 8px;
+  padding: 3px 9px; border-radius: $radius-full;
+  background: rgba($gold, .22); color: $gold-dark;
+  font-size: 10px; font-family: $font-serif-jp; white-space: nowrap;
+}
+
+// 編集された項目のカードは、左に線を入れて見分けられるようにする
+.cardEdited { border-left: 3px solid $gold; }
+
+.editArea {
+  width: 100%; margin-top: 14px; padding: 16px 18px; resize: vertical;
+  border: 1px solid rgba($gold, .5); border-radius: $radius-md;
+  background: $white;
+  font-size: 12px; line-height: 1.9; color: $charcoal;
+  font-family: $font-mono; white-space: pre-wrap;
+  @include focus-ring;
+}
+
+.primaryBtn {
+  padding: 8px 20px; border-radius: $radius-md; cursor: pointer;
+  background: $gold; border: 1px solid $gold; color: $white;
+  font-size: 11px; font-family: $font-serif-jp; white-space: nowrap;
+  transition: background .2s;
+  &:hover:not(:disabled) { background: $gold-dark; border-color: $gold-dark; }
+  &:disabled { opacity: .55; cursor: default; }
+  @include focus-ring;
+}
+
+.lockNote {
+  font-size: 11px; color: $stone; font-family: $font-serif-jp;
+}
+
+.hiddenFile {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}

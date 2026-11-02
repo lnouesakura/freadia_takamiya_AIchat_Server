@@ -21,8 +21,17 @@ export default function MediaPane({ images }: Props) {
       {images.map((img) => (
         <figure key={img.url} className={styles.figure}>
           {/* 物件画像は外部URLのこともあるため、next/image ではなく img を使っています */}
+          {/* 読み込めなかったときは、枠ごと消します（壊れたアイコンを出さない） */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={img.url} alt={img.caption || ''} className={styles.image} />
+          <img
+            src={img.url}
+            alt={img.caption || ''}
+            className={styles.image}
+            onError={(e) => {
+              const fig = (e.currentTarget as HTMLImageElement).closest('figure');
+              if (fig) fig.style.display = 'none';
+            }}
+          />
           {img.caption && <figcaption className={styles.caption}>{img.caption}</figcaption>}
         </figure>
       ))}

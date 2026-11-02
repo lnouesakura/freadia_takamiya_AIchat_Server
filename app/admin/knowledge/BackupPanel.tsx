@@ -8,7 +8,7 @@
 //   自動の控え         … 上書きされる直前の内容。1件ずつ元に戻せる
 //
 // 情報を入れる作業と同じ場所にあるべきなので、情報登録のタブに置いています。
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styles from './page.module.scss';
 
 type Snapshot = {
@@ -78,6 +78,10 @@ function ExportPanel({ onDone }: { onDone: () => void }) {
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
   const [file, setFile] = useState<{ name: string; data: unknown; counts?: Record<string, number> } | null>(null);
+  // ドラッグで重ねている最中かどうか（枠の色を変えるだけ）
+  const [over, setOver] = useState(false);
+  // ブラウザ既定の小さな「ファイルを選択」ボタンは隠し、こちらのボタンから開きます
+  const fileRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<'merge' | 'replace'>('merge');
 
   const exportNow = async () => {
@@ -177,13 +181,47 @@ function ExportPanel({ onDone }: { onDone: () => void }) {
           間違えても「自動の控え」から戻せます。</strong>
         </p>
 
-        <label className={styles.upload}>
-          <span className={styles.uploadLabel}>バックアップのJSONを選ぶ</span>
-          <span className={styles.uploadHint}>freadia-backup-〜.json</span>
-          <input type="file" accept="application/json,.json"
-            onChange={(e) => e.target.files?.[0] && pick(e.target.files[0])} />
-          {file && <span className={styles.fileName}>{file.name}</span>}
-        </label>
+        {/* 見た目は「取り込む」タブのファイル選択とそろえています */}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          className={styles.hiddenFile}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) pick(f);
+            e.target.value = '';
+          }}
+        />
+
+        <div
+          className={`${styles.dropZone} ${over ? styles.dropOver : ''} ${file ? styles.dropPicked : ''}`}
+          onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setOver(false);
+            const f = e.dataTransfer.files?.[0];
+            if (f) pick(f);
+          }}
+        >
+          {file ? (
+            <>
+              <p className={styles.dropPickedName}>{file.name}</p>
+              <button type="button" className={styles.dropBtnSub} onClick={() => fileRef.current?.click()}>
+                別のファイルにする
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" className={styles.dropBtn} onClick={() => fileRef.current?.click()}>
+                バックアップのJSONを選ぶ
+              </button>
+              <p className={styles.dropLead}>ここにファイルをドラッグしても読み込めます</p>
+              <p className={styles.dropHint}>freadia-backup-〜.json</p>
+            </>
+          )}
+        </div>
 
         {file?.counts && (
           <div className={styles.countBox}>

@@ -66,6 +66,122 @@ export function formatMiB(bytes: number): string {
  * APIに渡せる単位へ分割する。
  * 分割が要らなければ、元の base64 をそのまま1件返す（再保存しないので速い）。
  */
+/** 切り出しの計画。実際のbase64はまだ作りません */
+export type PdfPlan = {
+  /** 分割せずそのまま送れるか */
+  whole: boolean;
+  /** 送る単位ごとのページ番号（0始まり） */
+  groups: number[][];
+  pageCount: number;
+  /** 読み込み済みのPDF。切り出しに使います */
+  doc: PDFDocument | null;
+};
+
+/**
+ * どう分けるかだけを決めます。base64はまだ作りません。
+ *
+ * ■ なぜ分けたか
+ * 以前は全チャンクのbase64を一度に作って配列で持っていました。
+ * 43MBの資料では、それだけで58MBの文字列を抱えたまま
+ * 送信が終わるまで解放されず、ピークで500MBを超えていました。
+ * メモリの少ないコンテナではGCが追いつかず、処理が数秒止まります。
+ * その間は外向きの通信も進まないため、接続が10秒で打ち切られ、
+ * UND_ERR_CONNECT_TIMEOUT として現れていました。
+ *
+ * いまは1つ切り出して送り、終わったら捨てる、を繰り返します。
+ */
+export async function planPdfChunks(buf: Buffer): Promise<PdfPlan> {
+  let src: PDFDocument;
+  try {
+    src = await PDFDocument.load(buf, { ignoreEncryption: true });
+  } catch (e) {
+    // 構造を読めないPDF。上限内ならそのまま投げてみる（APIが読める場合がある）
+    if (base64Length(buf.length) <= B64_HARD_LIMIT) {
+      return { whole: true, groups: [], pageCount: 0, doc: null };
+    }
+    throw new Error(
+      `このPDFは分割できませんでした（${formatMiB(buf.length)}）。` +
+      `1ファイル約${formatMiB(REAL_SIZE_LIMIT)}までしか読み取れないため、` +
+      `ページを分けるか、画像を圧縮してからお試しください。` +
+      `（${e instanceof Error ? e.message : String(e)}）`,
+    );
+  }
+
+  const whole = base64Length(buf.length);
+  const pageCount = src.getPageCount();
+  const heavy = pageCount > 0 && buf.length / pageCount > HEAVY_PAGE_BYTES;
+
+  // 大きさもページ数も収まっていて、1ページが重くもなければ、何もしない
+  if (
+    whole <= B64_SAFE_LIMIT &&
+    pageCount <= MAX_PAGES_PER_CHUNK &&
+    !(heavy && pageCount > HEAVY_PAGES_PER_CHUNK)
+  ) {
+    return { whole: true, groups: [], pageCount, doc: null };
+  }
+
+  // ページごとの大きさを測る。
+  // 1ページだけのPDFとして書き出すため、共有している画像は複製されます。
+  // そのぶん合計は元より大きくなりますが、判定には問題ありません。
+  const pageBytes: number[] = [];
+  for (let i = 0; i < pageCount; i++) {
+    const one = await PDFDocument.create();
+    const [copied] = await one.copyPages(src, [i]);
+    one.addPage(copied);
+    const bytes = await one.save();
+    pageBytes.push(bytes.length);
+  }
+
+  // 単独で上限を超えるページがあれば、分割しても通らない
+  const tooBig = pageBytes.findIndex((b) => base64Length(b) > B64_HARD_LIMIT);
+  if (tooBig >= 0) {
+    throw new Error(
+      `${tooBig + 1}ページ目が単独で上限を超えています` +
+      `（${formatMiB(pageBytes[tooBig])}／上限 約${formatMiB(REAL_SIZE_LIMIT)}）。` +
+      `このページの画像を圧縮してからお試しください。`,
+    );
+  }
+
+  // 入るところまで詰める。重い資料は1チャンクのページ数も抑える
+  const pageCap = heavy ? HEAVY_PAGES_PER_CHUNK : MAX_PAGES_PER_CHUNK;
+  const groups: number[][] = [];
+  let current: number[] = [];
+  let currentBytes = 0;
+  for (let i = 0; i < pageCount; i++) {
+    const next = currentBytes + pageBytes[i];
+    const overSize = base64Length(next) > B64_SAFE_LIMIT;
+    const overPages = current.length >= pageCap;
+    if (current.length > 0 && (overSize || overPages)) {
+      groups.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(i);
+    currentBytes += pageBytes[i];
+  }
+  if (current.length > 0) groups.push(current);
+
+  return { whole: false, groups, pageCount, doc: src };
+}
+
+/**
+ * 計画にしたがって、1かたまりだけ切り出します。
+ * 呼ぶ側は、送り終えたら参照を手放してください。
+ */
+export async function renderPdfChunk(doc: PDFDocument, group: number[]): Promise<PdfChunk> {
+  const out = await PDFDocument.create();
+  const copied = await out.copyPages(doc, group);
+  copied.forEach((p) => out.addPage(p));
+  const bytes = await out.save();
+  const base64 = Buffer.from(bytes).toString('base64');
+  return {
+    base64,
+    fromPage: group[0] + 1,
+    toPage: group[group.length - 1] + 1,
+    b64Length: base64.length,
+  };
+}
+
 export async function splitPdfForApi(buf: Buffer, originalBase64: string): Promise<PdfChunk[]> {
   const whole = base64Length(buf.length);
 

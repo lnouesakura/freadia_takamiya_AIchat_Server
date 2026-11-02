@@ -1,0 +1,103 @@
+// components/chat/ConsentGate/ConsentGate.module.scss
+// チャットの同意画面。パネルのヘッダーより下いっぱいに出ます。
+// 配色はチャット本体（Figma）に合わせています。
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+.gate {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px $chat-pad 24px;
+  overflow-y: auto;
+}
+
+.inner {
+  width: 100%;
+  max-width: $chat-col-wide;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+// 本文は白い紙に載せ、AIの吹き出しと同じ見た目にそろえます
+.body {
+  background: $white;
+  border-radius: $chat-radius;
+  padding: 16px 19px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.line {
+  margin: 0;
+  font-family: $font-sans;
+  font-size: 11px;
+  line-height: 1.75;
+  color: #000;
+}
+
+// チェックボックス
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 19px;
+  background: $chat-tan-soft;
+  border-radius: $chat-radius;
+  cursor: pointer;
+  user-select: none;
+
+  > input {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    margin: 1px 0 0;
+    accent-color: $chat-tan;
+    cursor: pointer;
+  }
+
+  > span {
+    font-family: $font-sans;
+    font-size: 11px;
+    line-height: 1.6;
+    color: #000;
+  }
+}
+
+.agreeBtn {
+  // パネルの大きさが変わってもボタンの形が変わらないよう、
+  // 中央寄せのまま上限を決めています。
+  align-self: center;
+  width: 100%;
+  max-width: 280px;
+  padding: 13px 32px;
+  border: none;
+  border-radius: $chat-radius;
+  background: $chat-tan;
+  color: $white;
+  font-family: $font-sans;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: .04em;
+  cursor: pointer;
+  transition: background .2s ease, opacity .2s ease, transform .15s ease;
+
+  &:hover:not(:disabled) { background: #9B8164; }
+  &:active:not(:disabled) { transform: translateY(1px); }
+
+  // チェックを入れるまでは押せません
+  &:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+  }
+
+  @include focus-ring;
+}
+
+@media (max-width: $bp-sm) {
+  .gate { padding: 16px; }
+}

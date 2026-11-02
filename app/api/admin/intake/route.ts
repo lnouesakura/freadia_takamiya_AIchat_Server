@@ -20,10 +20,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { loadSlots, describeSlots, extractJson, callClaude } from '@/lib/knowledgeSlots';
+import { loadSlots, describeSlots, extractJson, callClaude, checkAnthropicReachable } from '@/lib/knowledgeSlots';
 import { parseDoc, describeHeadings } from '@/lib/propertySections';
 import { getProperty } from '@/lib/propertyStore';
-import { splitPdfForApi } from '@/lib/pdfSplit';
+import { planPdfChunks, renderPdfChunk } from '@/lib/pdfSplit';
 import { judgeConflicts, CheckItem, Verdict } from '@/lib/conflictCheck';
 import * as XLSX from 'xlsx';
 
@@ -124,32 +124,52 @@ function xlsxToText(base64: string): string {
  * 超える場合はページ単位に分けて読み取り、結果をつなぎます。
  */
 async function pdfToText(
-  base64: string,
+  buf: Buffer,
   mediaType: string,
   fileName: string,
   report: (percent: number, message: string) => void,
+  /** 読み取れなかった範囲をここに書き、画面に出します */
+  warnings: string[],
 ): Promise<string> {
   report(2, 'PDFを確認しています');
 
-  const buf = Buffer.from(base64, 'base64');
-  const chunks = await splitPdfForApi(buf, base64);
+  // 分けて送る前に、AIにつながるかだけ先に確かめます。
+  // つながらないまま始めると、同じ失敗がページの数だけ並んで
+  // 資料に問題があるように見えてしまいます。
+  const reach = await checkAnthropicReachable();
+  if (!reach.ok) {
+    throw new Error(`${reach.reason}\nしばらく時間をおいてから、もう一度お試しください。`);
+  }
+
+  const plan = await planPdfChunks(buf);
   const type = mediaType || 'application/pdf';
 
-  const total = chunks.length;
+  // 分けずに送れる場合は、ここで1回だけbase64にします
+  const total = plan.whole ? 1 : plan.groups.length;
   const span = (READ_TO - READ_FROM) / total; // 1チャンクに割り当てる進行度の幅
   const READ_TOKENS = 16000;
 
   const parts: string[] = [];
-  for (let i = 0; i < chunks.length; i++) {
-    const c = chunks[i];
+  for (let i = 0; i < total; i++) {
+    // 1かたまりずつ作ります。作りためると、その分の文字列を
+    // 送信が終わるまで抱え続けることになり、メモリが膨らみます。
+    const c = plan.whole || !plan.doc
+      ? {
+          base64: buf.toString('base64'),
+          fromPage: 1,
+          toPage: plan.pageCount,
+          b64Length: 0,
+        }
+      : await renderPdfChunk(plan.doc, plan.groups[i]);
+
     const base = READ_FROM + span * i;
     const label = total > 1
       ? `${c.fromPage}〜${c.toPage}ページ目を読み取っています（${i + 1}/${total}）`
       : 'PDFを読み取っています';
     report(base, label);
 
-    const where = chunks.length > 1
-      ? `（このPDFは${chunks.length}分割して読み取っています。今回は${c.fromPage}〜${c.toPage}ページ目です）`
+    const where = total > 1
+      ? `（このPDFは${total}分割して読み取っています。今回は${c.fromPage}〜${c.toPage}ページ目です）`
       : '';
 
     const instruction = `このファイル（${fileName}）に書かれている内容を、要約・省略せずにそのままテキストに起こしてください。${where}
@@ -160,25 +180,52 @@ async function pdfToText(
 - 推測で補わないでください。読み取れない箇所は「（判読不能）」と書いてください
 - 説明文や前置きは付けず、内容だけを出力してください`;
 
-    const text = await callClaude(
-      [
-        { type: 'document', source: { type: 'base64', media_type: type, data: c.base64 } },
-        { type: 'text', text: instruction },
-      ],
-      {
-        maxTokens: READ_TOKENS,
-        onText: (chars) => {
-          // 受け取った文字数から、このチャンクの進み具合を見積もる
-          const ratio = Math.min(chars / (READ_TOKENS * CHARS_PER_TOKEN), 0.95);
-          report(base + span * ratio, label);
+    // 1か所で失敗しても、残りのページは読み取ります。
+    // 以前は1チャンクでも落ちると全体が失敗し、せっかく読めた
+    // ページまで捨てていました。読めた分は活かし、読めなかった範囲を
+    // 画面に出して、そこだけ人が補えるようにします。
+    let text: string;
+    try {
+      text = await callClaude(
+        [
+          { type: 'document', source: { type: 'base64', media_type: type, data: c.base64 } },
+          { type: 'text', text: instruction },
+        ],
+        {
+          maxTokens: READ_TOKENS,
+          onText: (chars) => {
+            // 受け取った文字数から、このチャンクの進み具合を見積もる
+            const ratio = Math.min(chars / (READ_TOKENS * CHARS_PER_TOKEN), 0.95);
+            report(base + span * ratio, label);
+          },
         },
-      },
-    );
+      );
+    } catch (e) {
+      const why = e instanceof Error ? e.message : String(e);
+      console.error(`[intake] ${c.fromPage}〜${c.toPage}ページ目の読み取りに失敗:`, why);
+      // 接続できなかった場合に「ページを分けてください」と案内すると、
+      // 資料のせいだと誤解させてしまうため、文面を分けています。
+      const isNetwork = /つながりませんでした|通信が切れました/.test(why);
+      warnings.push(
+        `${c.fromPage}〜${c.toPage}ページ目は読み取れませんでした（${why}）。` +
+        (isNetwork
+          ? 'しばらく時間をおいてから、もう一度お試しください。'
+          : 'このページだけを別のPDFにして、もう一度お試しください。'),
+      );
+      report(base + span * 0.95, `${c.fromPage}〜${c.toPage}ページ目は読み取れませんでした`);
+      continue;
+    }
 
     parts.push(
-      chunks.length > 1
+      total > 1
         ? `# ${c.fromPage}〜${c.toPage}ページ\n${text.trim()}`
         : text.trim(),
+    );
+  }
+
+  if (parts.length === 0) {
+    throw new Error(
+      `このPDFはどのページも読み取れませんでした。\n${warnings.join('\n')}`,
     );
   }
 
@@ -214,6 +261,8 @@ ${sectionList}
 - 「（入力済み）」と付いたスロットにも、資料により新しい・詳しい情報があれば候補として出してよい
 - どの行き先にも当てはまらない重要な事実は notes に書く
 - 該当が無い行き先は、空配列にする
+- source は出どころが分かる最小限にする（例「P4 交通」「STORY#02」）。20文字以内。本文を写さない
+- notes は本当に行き先が無いものだけ。多くても5件まで
 
 出力は次のJSONのみ。前後に説明文を付けない。
 {
@@ -270,6 +319,8 @@ async function runIntake(
   // ── 第1段：素材をテキストにする ──
   let text = '';
   let sourceLabel = '';
+  /** 読み取れなかった範囲。画面の注意書きに出します */
+  const readWarnings: string[] = [];
 
   if (body.kind === 'file') {
     if (!body.base64) throw new Error('ファイルがありません');
@@ -279,7 +330,12 @@ async function runIntake(
     sourceLabel = name || 'アップロードしたファイル';
 
     if (lower.endsWith('.pdf') || mediaType === 'application/pdf') {
-      text = await pdfToText(body.base64, mediaType, name, report);
+      const pdfBuf = Buffer.from(body.base64, 'base64');
+      // 受け取った58MBほどの文字列を、ここで手放します。
+      // 抱えたままだとGCが追いつかず、処理が数秒止まることがあります。
+      // その間は外向きの通信も進まず、接続が打ち切られる原因になります。
+      body.base64 = '';
+      text = await pdfToText(pdfBuf, mediaType, name, report, readWarnings);
     } else if (
       lower.endsWith('.xlsx') || lower.endsWith('.xls') ||
       mediaType.includes('spreadsheet') || mediaType.includes('excel')
@@ -346,7 +402,8 @@ async function runIntake(
     text.slice(0, MAX_TEXT),
   ].join('\n');
 
-  const ROUTE_TOKENS = 8000;
+  // 資料1本から出る候補はスロット数×数行ぶん。8000では足りず途中で切れたため余裕を取ります。
+  const ROUTE_TOKENS = 24000;
   // 行き先の判定が終わった時点の進行度。残りは既存内容との突き合わせに使います。
   const ROUTE_TO = 94;
   const raw = await callClaude(prompt, {
@@ -354,6 +411,13 @@ async function runIntake(
     onText: (chars) => {
       const ratio = Math.min(chars / (ROUTE_TOKENS * CHARS_PER_TOKEN), 0.95);
       report(READ_TO + (ROUTE_TO - READ_TO) * ratio, '情報の行き先を判定しています');
+    },
+    // 上限に達して切れた場合は、取り出せたぶんだけ返したことを画面に伝えます。
+    onTruncated: () => {
+      readWarnings.push(
+        '候補が多く、AIの出力が途中で切れました。取り出せたところまでを候補にしています。'
+        + '資料を分けて取り込むと、残りも拾えます。',
+      );
     },
   });
 
@@ -452,7 +516,7 @@ async function runIntake(
       text,
     },
     categories: cats.map((c) => ({ id: c.id, label: c.label })),
-    notes: (parsed.notes || []).filter(Boolean),
+    notes: [...readWarnings, ...(parsed.notes || []).filter(Boolean)],
   };
 }
 

@@ -19,12 +19,14 @@ import ChatMessages, { Message } from '@/components/chat/ChatMessages/ChatMessag
 import ChatInput from '@/components/chat/ChatInput/ChatInput';
 import QuickQuestions from '@/components/chat/QuickQuestions/QuickQuestions';
 import MediaPane from '@/components/chat/MediaPane/MediaPane';
+import ConsentGate from '@/components/chat/ConsentGate/ConsentGate';
 
 import { CHARACTERS, CharacterId } from '@/lib/characters';
 import { useSpeech } from '@/hooks/useSpeech';
 import { classifyResponse } from '@/lib/analyzeQuestion';
 import { getPropertyTitle } from '@/lib/getPropertyTitle';
 import { splitMedia } from '@/lib/chatMedia';
+import { CONSENT_KEY } from '@/lib/consent';
 import styles from './ChatWidget.module.scss';
 
 const BROWSER_ID_KEY = 'ai_chat_browser_id';
@@ -76,6 +78,9 @@ export default function ChatWidget({
   const [open, setOpen] = useState(defaultOpen);        // 閉じていないか
   const [embedded, setEmbedded] = useState(false);      // iframe で貼られているか
   const [narrow, setNarrow] = useState(false);          // スマホなど幅の狭い画面か
+  // 同意の画面を出すかどうか。
+  // 画面がちらつかないよう、確かめるまでは null（まだ分からない）にしておきます。
+  const [consented, setConsented] = useState<boolean | null>(null);
 
   const browserIdRef = useRef<string>('');
   const startTimeRef = useRef<number>(Date.now());
@@ -118,6 +123,16 @@ export default function ChatWidget({
     if (inFrame) {
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+    }
+
+    // 同意済みかどうか。
+    // Safari は別サイトの iframe からの localStorage を遮断するため、
+    // 読めないときは「まだ同意していない」として毎回お見せします。
+    // 法的な確認なので、分からないときは出すほうを選んでいます。
+    try {
+      setConsented(localStorage.getItem(CONSENT_KEY) === '1');
+    } catch {
+      setConsented(false);
     }
 
     // 幅の狭い画面では、左に画像を出す2段組みにしません（styles の $bp-sm と同じ値）
@@ -320,6 +335,15 @@ export default function ChatWidget({
     notifyHost('open');
   };
 
+  const handleAgree = () => {
+    setConsented(true);
+    try {
+      localStorage.setItem(CONSENT_KEY, '1');
+    } catch {
+      // 保存できない環境では、次に開いたときにもう一度お見せします
+    }
+  };
+
   const rootClass = [
     styles.root,
     floating ? styles.rootFloating : '',
@@ -367,6 +391,9 @@ export default function ChatWidget({
           }
         />
 
+        {consented === false ? (
+          <ConsentGate onAgree={handleAgree} />
+        ) : (
         <div className={styles.body}>
           {showMedia && <MediaPane images={mediaImages} />}
 
@@ -410,6 +437,7 @@ export default function ChatWidget({
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

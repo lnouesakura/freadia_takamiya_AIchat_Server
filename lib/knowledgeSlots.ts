@@ -76,6 +76,50 @@ export function emptySlotsByPriority(slots: Slot[]): Slot[] {
 }
 
 /** AIの応答から JSON を取り出す。前後に説明文が付いても拾えるようにする。 */
+/**
+ * 途中で切れたJSONを、読める形に閉じ直します。
+ *
+ * 出力の上限に達すると、AIの返事は配列やオブジェクトの途中で終わります。
+ * そのままでは1件も取り出せず、せっかく読み取った内容が全部無駄になります。
+ * 最後まで書き切れている要素までを残し、開いたままの括弧を閉じて返します。
+ *
+ * 例： {"matrix":[{...},{"code":"STN","val   →   {"matrix":[{...}]}
+ */
+export function repairTruncatedJson(src: string): string | null {
+  let inStr = false;
+  let esc = false;
+  const stack: string[] = [];
+  let cutAt = -1;
+  let closersAtCut = '';
+
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === '\\') esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === '{') { stack.push('}'); continue; }
+    if (ch === '[') { stack.push(']'); continue; }
+
+    if (ch === '}' || ch === ']') {
+      stack.pop();
+      // まだ外側が開いている＝配列やオブジェクトの中の要素が1つ閉じた位置
+      if (stack.length > 0) {
+        cutAt = i + 1;
+        closersAtCut = stack.slice().reverse().join('');
+      }
+    }
+  }
+
+  if (cutAt < 0) return null;
+  return src.slice(0, cutAt) + closersAtCut;
+}
+
 export function extractJson<T>(text: string): T | null {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const body = fenced ? fenced[1] : text;
@@ -89,6 +133,16 @@ export function extractJson<T>(text: string): T | null {
       return JSON.parse(slice) as T;
     } catch {
       /* 次を試す */
+    }
+  }
+
+  // ここまで来たら、途中で切れている可能性が高い。閉じ直して試す。
+  const repaired = repairTruncatedJson(body.slice(start));
+  if (repaired) {
+    try {
+      return JSON.parse(repaired) as T;
+    } catch {
+      /* それでも駄目なら諦める */
     }
   }
   return null;
@@ -118,16 +172,56 @@ function describeFetchError(e: unknown): string {
       + '資料が大きいほど起こりやすくなります。もう一度お試しいただくか、ページを分けてください。';
   }
 
-  // 名前解決・到達不能
-  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'ECONNREFUSED') {
-    return 'AIのサーバーに接続できませんでした。'
-      + 'ネットワークの設定か、サーバーの外部通信が遮断されている可能性があります。'
+  // 接続そのものが張れなかった（資料の中身とは無関係）
+  //
+  // UND_ERR_CONNECT_TIMEOUT は、api.anthropic.com への接続が
+  // 10秒以内に確立できなかったという意味です。リクエストは送られておらず、
+  // 資料の大きさやページ数は関係ありません。
+  // サーバーの外向きの通信か、名前解決が詰まっているときに出ます。
+  if (
+    code === 'UND_ERR_CONNECT_TIMEOUT' ||
+    code === 'ENOTFOUND' || code === 'EAI_AGAIN' ||
+    code === 'ECONNREFUSED' || code === 'EHOSTUNREACH' || code === 'ENETUNREACH'
+  ) {
+    return 'サーバーからAIにつながりませんでした。'
+      + '資料の内容や大きさは関係ありません（送信される前の段階で止まっています）。'
+      + 'サーバーの外向きの通信か、名前解決が一時的に詰まっている可能性があります。'
       + `（${code}）`;
   }
 
   // 分からないものは、そのまま出して次の調査につなげる
   const detail = [e.message, code, cause?.message].filter(Boolean).join(' / ');
   return `AIへの接続に失敗しました（${detail}）`;
+}
+
+/**
+ * AIのサーバーにつながるかだけを、先に確かめます。
+ *
+ * 大きなPDFは4回に分けて送るため、つながらない状態で始めると
+ * 「1〜4ページ目が読めません」「5〜8ページ目が読めません」と
+ * 同じ失敗が並び、資料に問題があるように見えてしまいます。
+ * 送る前に一度だけ確かめて、つながらないならその場で伝えます。
+ *
+ * トークンは消費しません（モデル一覧を1件だけ取りに行きます）。
+ */
+export async function checkAnthropicReachable(): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { ok: false, reason: 'ANTHROPIC_API_KEY が設定されていません' };
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/models?limit=1', {
+      method: 'GET',
+      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, reason: 'APIキーが受け付けられませんでした。キーをご確認ください。' };
+    }
+    // 繋がってさえいれば、他のステータスでも読み取りは試す価値があります
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: describeFetchError(e) };
+  }
 }
 
 /** 1回の呼び出しに許す時間。ストリーミングなので長めでも安全。 */
@@ -153,6 +247,8 @@ export async function callClaude(
     retries?: number;
     /** 受信した文字数を知らせる。進行度の表示に使う */
     onText?: (chars: number) => void;
+    /** 出力の上限に達して途中で切れたことを知らせる */
+    onTruncated?: () => void;
   } = {},
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -166,19 +262,29 @@ export async function callClaude(
     stream: true,
   });
 
-  const maxAttempts = (opts.retries ?? 1) + 1;
+  // 接続できなかったときは、間をあけて数回やり直します。
+  //
+  // 以前は「通信が切れた」「応答が遅い」だけをやり直していたため、
+  // 接続そのものが張れなかったとき（UND_ERR_CONNECT_TIMEOUT）は
+  // 1度も再試行せずに落ちていました。
+  // 名前解決や外向きの通信が一時的に詰まっているだけのことも多いので、
+  // 待ち時間を延ばしながら試します。
+  const maxAttempts = (opts.retries ?? 2) + 1;
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      return await streamOnce(apiKey, body, opts.onText);
+      return await streamOnce(apiKey, body, opts.onText, opts.onTruncated);
     } catch (e) {
       lastError = e;
-      // 送信しきれなかった類のものだけ、1度だけやり直す
-      const retriable = e instanceof Error && /通信が切れました|応答が時間内に/.test(e.message);
+      const retriable =
+        e instanceof Error &&
+        /通信が切れました|応答が時間内に|つながりませんでした/.test(e.message);
       if (!retriable || attempt === maxAttempts) break;
-      console.warn(`[callClaude] ${attempt}回目が失敗。やり直します:`, e.message);
-      await new Promise((r) => setTimeout(r, 1500));
+      // 1.5秒 → 4秒 → 8秒 と間をあける
+      const wait = [1500, 4000, 8000][attempt - 1] ?? 8000;
+      console.warn(`[callClaude] ${attempt}回目が失敗。${wait}ms待ってやり直します:`, e.message);
+      await new Promise((r) => setTimeout(r, wait));
     }
   }
 
@@ -190,6 +296,7 @@ async function streamOnce(
   apiKey: string,
   body: string,
   onText?: (chars: number) => void,
+  onTruncated?: () => void,
 ): Promise<string> {
   let res: Response;
   try {
@@ -277,6 +384,7 @@ async function streamOnce(
 
   if (stopReason === 'max_tokens') {
     console.warn('[callClaude] 出力が上限に達して途中で切れています');
+    onTruncated?.();
   }
   return text;
 }

@@ -218,8 +218,16 @@ export default function ChatMessages({
                     <div className={styles.inlineMedia}>
                       {images.map((img) => (
                         <figure key={img.url} className={styles.inlineFigure}>
+                          {/* 読み込めなかったときは、枠ごと消します */}
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={img.url} alt={img.caption || ''} />
+                          <img
+                            src={img.url}
+                            alt={img.caption || ''}
+                            onError={(e) => {
+                              const fig = (e.currentTarget as HTMLImageElement).closest('figure');
+                              if (fig) fig.style.display = 'none';
+                            }}
+                          />
                           {img.caption && <figcaption>{img.caption}</figcaption>}
                         </figure>
                       ))}

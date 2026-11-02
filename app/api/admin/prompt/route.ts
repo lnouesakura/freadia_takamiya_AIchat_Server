@@ -1,5 +1,5 @@
 // app/api/admin/prompt/route.ts
-// AIの挙動に関する指示（システムプロンプトの前半）を返します。
+// AIの挙動に関する指示（システムプロンプトの前半）を返し、項目ごとの編集を受け取ります。
 //
 // チャットが使うのと**同じ関数**を呼んでいます（lib/buildChatPrompt.ts）。
 // 表示用に別の文章を組み立てると、実物と食い違ったときに気づけません。
@@ -11,17 +11,27 @@
 // 振る舞いを決めている部分）を返します。
 // 省いた分量は omitted で返し、画面に明示します。
 //
+// ■ 編集について
+// コードに書かれた文章が初期値です。編集するとデータベースに保存され、
+// その項目だけが差し替わります。編集していない項目には、今後こちらが
+// コードを改善した分がそのまま届きます（lib/promptOverrides.ts）。
+//
 // ■ 含まないもの
 // お客様ごとに変わる「過去の会話履歴」。
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { buildChatPrompt } from '@/lib/buildChatPrompt';
+import { splitIntoBlocks, PREAMBLE } from '@/lib/promptBlocks';
+import {
+  loadOverrides,
+  isEditable,
+  saveOverride,
+  clearOverride,
+} from '@/lib/promptOverrides';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
-
-type Block = { heading: string; body: string };
 
 /**
  * 切り出しの終端。先に来るものほど優先して探します。
@@ -36,58 +46,6 @@ const CUT_AFTER = [
 /** ここから先は物件情報・AI知識設計の領域 */
 const PROPERTY_START = '物件情報';
 
-/** 区切り線だけの行。Markdownの水平線 */
-const RULE_LINE = /^(-{3,}|\*{3,}|_{3,})$/;
-
-/**
- * 見出しの表記をそろえる。
- * もとの文章には `# 見出し` と `【見出し】` が混在しているため、
- * 画面では【】を外して並べます。見出しの意味は変わりません。
- */
-function normalizeHeading(h: string): string {
-  return h.replace(/^【(.+)】$/, '$1').trim();
-}
-
-/**
- * 本文の前後にある区切り線と空行を落とす。
- * `---` は見出しではないので直前の項目の本文に入ってしまい、
- * 「本文が区切り線だけ」の項目ができてしまいます。
- */
-function cleanBody(raw: string): string {
-  const lines = raw.split('\n');
-  const isNoise = (l: string) => !l.trim() || RULE_LINE.test(l.trim());
-  while (lines.length && isNoise(lines[0])) lines.shift();
-  while (lines.length && isNoise(lines[lines.length - 1])) lines.pop();
-  return lines.join('\n').trim();
-}
-
-/**
- * 本文を見出しごとに分ける。
- * 見出しは systemPrompt.ts の `# 見出し`、`【見出し】`、`■ 見出し` を拾います。
- */
-function splitIntoBlocks(text: string): Block[] {
-  const lines = text.split('\n');
-  const blocks: { heading: string; body: string[] }[] = [];
-  let current: { heading: string; body: string[] } = { heading: '冒頭', body: [] };
-
-  for (const line of lines) {
-    const t = line.trim();
-    const isHeading =
-      /^#{1,3}\s+\S/.test(t) ||          // # 見出し
-      /^【.+】$/.test(t) ||               // 【見出し】
-      /^■\s*\S/.test(t);                 // ■ 見出し
-    if (isHeading) {
-      if (current.body.some((l) => l.trim()) || current.heading !== '冒頭') blocks.push(current);
-      current = { heading: normalizeHeading(t.replace(/^#{1,3}\s+/, '')), body: [] };
-      continue;
-    }
-    current.body.push(line);
-  }
-  blocks.push(current);
-
-  return blocks.map((b) => ({ heading: b.heading, body: cleanBody(b.body.join('\n')) }));
-}
-
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -96,6 +54,7 @@ export async function GET() {
     // チャットと同じ組み立て。キャラクターは葵（唯一の担当）
     const full = await buildChatPrompt('aoi');
     const all = splitIntoBlocks(full);
+    const overrides = await loadOverrides();
 
     // ── どこで切るかを決める ──
     let cut = -1;
@@ -114,11 +73,20 @@ export async function GET() {
 
     // ── 本文のない見出しは、項目ごと落とす ──
     // 区切り線だけだったものも、cleanBody で空になるのでここで落ちます
-    const blocks = kept.filter((b) => b.body.trim());
+    const blocks = kept
+      .filter((b) => b.body.trim())
+      .map((b) => ({
+        heading: b.heading,
+        body: b.body,
+        /** この画面から編集してよいか（設定タブの項目は不可） */
+        editable: isEditable(b.heading) && b.heading !== PREAMBLE,
+        /** すでに編集されているか */
+        edited: overrides.has(b.heading),
+      }));
 
     // 画面に出す分だけを組み立て直す。コピーや保存も、見えているものと同じにする。
     const shown = blocks
-      .map((b) => (b.heading === '冒頭' ? b.body : `${b.heading}\n${b.body}`))
+      .map((b) => (b.heading === PREAMBLE ? b.body : `${b.heading}\n${b.body}`))
       .join('\n\n');
 
     const omittedChars = dropped.reduce(
@@ -143,12 +111,59 @@ export async function GET() {
       },
       /** 本文が空で落とした見出しの数 */
       emptyRemoved: kept.length - blocks.length,
+      /** 編集されている項目の数 */
+      editedCount: blocks.filter((b) => b.edited).length,
       blocks,
       prompt: shown,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error('[prompt] 組み立てに失敗:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/** 1項目を編集して保存する */
+export async function PUT(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  try {
+    const body = await req.json();
+    const heading = String(body?.heading || '').trim();
+    const text = String(body?.body ?? '');
+
+    if (!heading) return NextResponse.json({ error: '項目が指定されていません' }, { status: 400 });
+    if (!text.trim()) {
+      return NextResponse.json(
+        { error: '本文が空です。初期値に戻す場合は「初期値に戻す」を押してください' },
+        { status: 400 },
+      );
+    }
+
+    await saveOverride(heading, text, session.user?.email || undefined);
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error('[prompt] 保存に失敗:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/** 1項目を初期値に戻す */
+export async function DELETE(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  try {
+    const heading = String(new URL(req.url).searchParams.get('heading') || '').trim();
+    if (!heading) return NextResponse.json({ error: '項目が指定されていません' }, { status: 400 });
+
+    await clearOverride(heading);
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error('[prompt] 初期値に戻せませんでした:', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
