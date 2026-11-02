@@ -191,16 +191,13 @@
   > .blockNote { width: 100%; }
 }
 
-.upload {
-  @include card; padding: 18px 20px;
-  display: flex; flex-direction: column; gap: 4px; cursor: pointer;
-  border-style: dashed;
-  &:hover { border-color: rgba($gold, .5); }
-  > input { margin-top: 8px; font-size: 11px; font-family: $font-serif-jp; }
+// 設計データの取込の見出し。
+// ブラウザ既定の小さな「ファイルを選択」は使わず、
+// 他のタブと同じ .dropZone ／ .dropBtn にそろえています。
+.uploadLabel {
+  margin: 0; font-size: 13px; font-weight: 600;
+  color: $charcoal; font-family: $font-serif-jp;
 }
-.uploadLabel { font-size: 13px; font-weight: 600; color: $charcoal; font-family: $font-serif-jp; }
-.uploadHint  { font-size: 11px; color: $stone; font-family: $font-mono; }
-.fileName    { margin-top: 6px; font-size: 11px; color: $gold-dark; font-family: $font-serif-jp; }
 
 .flowBox {
   @include card; padding: 16px 20px; margin-bottom: 18px;
@@ -218,7 +215,25 @@
 }
 
 // ── 設計データ（JSON取込） ────────────────────
-.uploadRow { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+// 設計データの取込。2つを半分ずつ並べます。
+// 以前は中身の幅しか取らず、右側が空いていました。
+.uploadRow {
+  display: flex; gap: 14px; margin-bottom: 4px; align-items: stretch;
+}
+
+.uploadCol {
+  // 2つで等分し、中身の長さに引きずられないようにします
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; gap: 8px;
+
+  // 高さをそろえるため、枠を縦に伸ばします
+  > .dropZone { flex: 1; justify-content: center; }
+}
+
+// 幅が足りないときは縦に並べます
+@media (max-width: $bp-sm) {
+  .uploadRow { flex-direction: column; }
+}
 .ruleList {
   margin: 6px 0 0; padding-left: 18px;
   > li {
@@ -852,9 +867,44 @@
   margin: 0; font-size: 10px; color: $stone; font-family: $font-mono;
 }
 
+.imgCaption {
+  margin: 0; font-size: 11px; line-height: 1.7;
+  color: $charcoal; font-family: $font-serif-jp;
+}
+
 .checkRow {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 11px; color: $charcoal-light; font-family: $font-serif-jp; cursor: pointer;
+}
+
+// 削除は取り返しがつかないので、ほかのボタンと見分けが付くようにしています
+.dangerChip {
+  padding: 6px 14px; border-radius: $radius-full; cursor: pointer;
+  border: 1px solid rgba($red-error, .45); background: $white;
+  font-size: 11px; color: $red-error; font-family: $font-serif-jp;
+  &:hover:not(:disabled) { background: rgba($red-error, .08); }
+  &:disabled { opacity: .4; cursor: not-allowed; }
+  @include focus-ring;
+}
+
+// ── 登録済みの画像を編集する ───────────────────
+.imgEdit {
+  padding: 14px; display: flex; flex-direction: column; gap: 10px;
+  background: rgba($cream-dark, .35);
+}
+
+.imgEditTop {
+  display: flex; gap: 12px; align-items: flex-start;
+}
+
+.imgThumbSm {
+  width: 108px; height: 80px; object-fit: contain; flex-shrink: 0;
+  background: $white; border: 1px solid rgba($stone, .25);
+  border-radius: $radius-md; display: block;
+}
+
+.imgEditPic {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0;
 }
 
 @media (max-width: $bp-md) {

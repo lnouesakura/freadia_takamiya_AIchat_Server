@@ -28,6 +28,7 @@ import { buildSystemPrompt } from '@/lib/systemPrompt';
 import { buildKnowledgeGuard } from '@/lib/knowledgeGuard';
 import { applyOverrides } from '@/lib/promptOverrides';
 import { buildImageGuide } from '@/lib/propertyImages';
+import { memoPrompt } from '@/lib/promptCache';
 
 export async function buildChatPrompt(characterId?: string): Promise<string> {
   let propertyTitle = 'AIコンシェルジュ';
@@ -37,15 +38,26 @@ export async function buildChatPrompt(characterId?: string): Promise<string> {
   let salesTechnique = '';
   let extraChatKnowledge = '';
 
+  // DBから読むものは、互いに関係がないので一度に投げます。
+  //
+  // 以前は1つずつ順番に待っていました。1往復が数十msでも、
+  // 7つ重なると数百msになり、その間お客様の画面には何も出ません。
+  // ここを並べたことで、いちばん遅い1つ分の時間で済みます。
+  // DBが落ちていてもチャット自体は動かしたいので、失敗したら既定値にします。
+  // 型は元の問い合わせのまま保ちたいので、同じ型の値を返す形にしています。
+  const safe = <T,>(p: Promise<T>, fallback: T): Promise<T> => p.catch(() => fallback);
+
+  const [property, sales, docs, categories] = await Promise.all([
+    safe(prisma.propertyInfo.findFirst({ orderBy: { updatedAt: 'desc' } }), null),
+    safe(prisma.salesPrompt.findMany(), []),
+    safe(prisma.knowledgeDoc.findMany({ orderBy: { createdAt: 'asc' } }), []),
+    safe(prisma.knowledgeCategory.findMany(), []),
+  ]);
+
   // 案件情報（DB）
-  try {
-    const property = await prisma.propertyInfo.findFirst({ orderBy: { updatedAt: 'desc' } });
-    if (property) {
-      mansionData = property.content;
-      if (property.title) propertyTitle = property.title;
-    }
-  } catch {
-    /* DB未接続でもフォールバックで動かす */
+  if (property) {
+    mansionData = property.content;
+    if (property.title) propertyTitle = property.title;
   }
 
   // DBに情報が無ければ、コード側のサンプルデータを使う
@@ -55,24 +67,15 @@ export async function buildChatPrompt(characterId?: string): Promise<string> {
   }
 
   // 接客ノウハウ（DB）
-  try {
-    const sales = await prisma.salesPrompt.findMany();
-    sales.forEach((s) => {
-      if (s.section === 'appeal') salesAppeal = s.content;
-      if (s.section === 'tone') salesTone = s.content;
-      if (s.section === 'technique') salesTechnique = s.content;
-    });
-  } catch {
-    /* なければ空のまま */
-  }
+  sales.forEach((s) => {
+    if (s.section === 'appeal') salesAppeal = s.content;
+    if (s.section === 'tone') salesTone = s.content;
+    if (s.section === 'technique') salesTechnique = s.content;
+  });
 
   // 追加資料（DB）。分類（KnowledgeCategory）の target で振り分ける。
   //   target='property' … 物件知識として渡す / それ以外 … 接客情報として渡す
-  try {
-    const [docs, categories] = await Promise.all([
-      prisma.knowledgeDoc.findMany({ orderBy: { createdAt: 'asc' } }),
-      prisma.knowledgeCategory.findMany(),
-    ]);
+  {
     const targetOf = (categoryId: string) =>
       categories.find((c) => c.id === categoryId)?.target ?? (categoryId === 'property' ? 'property' : 'chat');
     const propertyDocs = docs.filter((d) => targetOf(d.category) === 'property');
@@ -83,8 +86,6 @@ export async function buildChatPrompt(characterId?: string): Promise<string> {
     if (otherDocs.length) {
       extraChatKnowledge = otherDocs.map((d) => `【${d.title}】\n${d.content}`).join('\n\n');
     }
-  } catch {
-    /* なければ無視 */
   }
 
   const character =
@@ -100,16 +101,26 @@ export async function buildChatPrompt(characterId?: string): Promise<string> {
     mansionData,
   });
 
-  // 管理画面「AIへの指示」で編集された項目があれば、そこだけ差し替える。
-  // 編集が無ければ1文字も変わらない。
-  const edited = await applyOverrides(base);
-
-  // 知識設計（ペルソナ／情報マトリクス／想定問答）による回答制御を末尾に足す。
-  // 未導入なら空文字が返るので、これまでどおり動作する。
-  const guard = await buildKnowledgeGuard();
-
-  // 会話の中でお見せできる画像の一覧。登録が無ければ空文字。
-  const images = await buildImageGuide();
+  // 残りの3つも互いに関係がないので、まとめて取りに行きます。
+  //   applyOverrides      管理画面「AIへの指示」で編集された項目の差し替え
+  //                       （編集が無ければ1文字も変わらない）
+  //   buildKnowledgeGuard 知識設計による回答制御。未導入なら空文字
+  //   buildImageGuide     お見せできる画像の一覧。登録が無ければ空文字
+  const [edited, guard, images] = await Promise.all([
+    applyOverrides(base),
+    buildKnowledgeGuard(),
+    buildImageGuide(),
+  ]);
 
   return edited + images + guard;
+}
+
+/**
+ * チャットが使う側の入口。
+ *
+ * 組み立て結果を短い間だけ覚えておき、2回目以降はデータベースへ行きません。
+ * 管理画面の表示は buildChatPrompt を直接呼んでください（毎回組み立て直します）。
+ */
+export function getChatPrompt(characterId?: string): Promise<string> {
+  return memoPrompt(`chat:${characterId || '-'}`, () => buildChatPrompt(characterId));
 }

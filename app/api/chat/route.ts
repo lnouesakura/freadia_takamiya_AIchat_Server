@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { categorizeQuestion, extractKeywords, classifyResponse } from '@/lib/analyzeQuestion';
 import { maskPii } from '@/lib/maskPii';
-import { buildChatPrompt } from '@/lib/buildChatPrompt';
+import { getChatPrompt } from '@/lib/buildChatPrompt';
 
 // 使用するモデル。切り替えたい場合はここを変更してください。
 const MODEL = 'claude-sonnet-4-6';
@@ -18,8 +18,12 @@ export interface Message {
 
 
 // ── 過去の会話サマリーを付け足す ────────────────────────────
-async function withPastContext(systemPrompt: string, browserId?: string): Promise<string> {
-  if (!browserId) return systemPrompt;
+//
+// この部分だけはお客様ごとに違います。
+// 共通の指示と混ぜてしまうと、Anthropic側で前回の読み込み結果を
+// 使い回せなくなる（お客様ごとに別物になる）ため、別のブロックにして返します。
+async function pastContext(browserId?: string): Promise<string> {
+  if (!browserId) return '';
   try {
     const pastSessions = await prisma.chatSession.findMany({
       where: { browserId, summary: { not: null } },
@@ -27,25 +31,26 @@ async function withPastContext(systemPrompt: string, browserId?: string): Promis
       take: 5,
       select: { summary: true, createdAt: true },
     });
-    if (!pastSessions.length) return systemPrompt;
+    if (!pastSessions.length) return '';
 
     const historyText = pastSessions
       .reverse()
       .map((s) => `・${new Date(s.createdAt).toLocaleDateString('ja-JP')}：${s.summary}`)
       .join('\n');
 
-    return `${systemPrompt}
+    return `
 
 【このお客様の過去の会話履歴】
 以下はこのお客様（同じブラウザ）の過去の会話サマリーです。この文脈を踏まえて自然に会話を続けてください。
 ${historyText}`;
   } catch {
-    return systemPrompt;
+    return '';
   }
 }
 
 // ── ストリーミングレスポンス ────────────────────────────────
 export async function POST(req: NextRequest) {
+  const startedAt = Date.now();
   try {
     const {
       messages,
@@ -75,7 +80,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const systemPrompt = await withPastContext(await buildChatPrompt(characterId), browserId);
+    // 共通の指示と、このお客様だけの履歴。
+    // 互いに関係がないので同時に取りに行きます。
+    const [sharedPrompt, personal] = await Promise.all([
+      getChatPrompt(characterId),
+      pastContext(browserId),
+    ]);
+
+    // システムプロンプトを2つに分けて渡します。
+    //
+    // 1つ目は全員に共通の指示で、数万文字あります。
+    // これまでは毎回まるごと送り直していたため、Anthropic側が毎回
+    // 読み込み直していました。返事の1文字目が出るまでの待ち時間は、
+    // ほとんどがこの読み込みです。
+    //
+    // cache_control を付けると、読み込んだ結果が向こうに残り、
+    // 次からはそれを使い回します（既定で5分間、使うたびに延長）。
+    // 会話が続いているあいだは、2通目以降がはっきり速くなります。
+    //
+    // 2つ目のお客様ごとの履歴は、人によって違うので使い回せません。
+    // 混ぜると1つ目まで使い回せなくなるため、後ろに分けてあります。
+    const system: { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }[] = [
+      { type: 'text', text: sharedPrompt, cache_control: { type: 'ephemeral' } },
+    ];
+    if (personal) system.push({ type: 'text', text: personal });
 
     const anthropicRes = await fetch(ANTHROPIC_URL, {
       method: 'POST',
@@ -88,7 +116,7 @@ export async function POST(req: NextRequest) {
         model: MODEL,
         max_tokens: 1024,
         stream: true,
-        system: systemPrompt,
+        system,
         messages,
       }),
     });
@@ -124,6 +152,20 @@ export async function POST(req: NextRequest) {
               if (data === '[DONE]' || !data) continue;
               try {
                 const parsed = JSON.parse(data);
+
+                // 読み込み結果を使い回せたかどうかを出しておきます。
+                //   cache_read  … 使い回せた文字数（大きいほど速い）
+                //   cache_write … 今回ぶんを覚えさせた文字数（初回はこちら）
+                if (parsed.type === 'message_start') {
+                  const u = parsed.message?.usage || {};
+                  const read = u.cache_read_input_tokens ?? 0;
+                  const write = u.cache_creation_input_tokens ?? 0;
+                  console.log(
+                    `[chat] 指示の読み込み: 使い回し ${read} / 新しく覚えた ${write} / そのまま ${u.input_tokens ?? 0}`
+                    + `　（1文字目まで ${Date.now() - startedAt}ms）`,
+                  );
+                }
+
                 if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
                   fullText += parsed.delta.text;
                   controller.enqueue(new TextEncoder().encode(parsed.delta.text));

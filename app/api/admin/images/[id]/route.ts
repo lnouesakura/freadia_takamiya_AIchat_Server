@@ -7,6 +7,11 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+/** 1枚あたりの上限。縮小後なので、ふつうは数百KBに収まります */
+const MAX_BYTES = 3 * 1024 * 1024;
+
+const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -27,6 +32,31 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
     if (typeof body?.enabled === 'boolean') data.enabled = body.enabled;
     if (Number.isInteger(body?.sort)) data.sort = body.sort;
+
+    // 画像そのものの差し替え。
+    // 説明や「ことば」はそのままに、絵だけ新しくしたいときに使います。
+    // 縮小はブラウザ側で済んでいるので、ここでは大きすぎるものを弾くだけです。
+    if (typeof body?.base64 === 'string' && body.base64) {
+      const mediaType = String(body?.mediaType || '');
+      if (!ALLOWED.includes(mediaType)) {
+        return NextResponse.json({ error: '画像は jpg / png / webp のいずれかにしてください' }, { status: 400 });
+      }
+      const bytes = Buffer.from(body.base64, 'base64');
+      if (bytes.byteLength === 0) {
+        return NextResponse.json({ error: '画像を読み取れませんでした' }, { status: 400 });
+      }
+      if (bytes.byteLength > MAX_BYTES) {
+        return NextResponse.json(
+          { error: `画像が大きすぎます（${(bytes.byteLength / 1024 / 1024).toFixed(1)}MB）。3MB以下にしてください` },
+          { status: 400 },
+        );
+      }
+      data.mediaType = mediaType;
+      data.bytes = bytes;
+      data.size = bytes.byteLength;
+      data.width = Number(body?.width) || 0;
+      data.height = Number(body?.height) || 0;
+    }
 
     await prisma.propertyImage.update({ where: { id: params.id }, data });
     return NextResponse.json({ ok: true });

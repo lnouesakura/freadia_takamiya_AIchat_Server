@@ -77,6 +77,9 @@ export default function ImagePanel({ reloadKey, onDone }: { reloadKey: number; o
   const [tags, setTags] = useState('');
   const [over, setOver] = useState(false);
 
+  /** いま編集している画像のid。空なら誰も編集していません */
+  const [editing, setEditing] = useState('');
+
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = () => {
@@ -167,6 +170,35 @@ export default function ImagePanel({ reloadKey, onDone }: { reloadKey: number; o
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : '削除に失敗しました');
+    }
+  };
+
+  /**
+   * 登録済みの画像を書き換えます。
+   *
+   * 画像そのものを差し替えるときは base64 も一緒に送ります。
+   * 説明や「ことば」はそのまま残るので、絵だけ新しくできます。
+   */
+  const saveEdit = async (id: string, data: Record<string, unknown>) => {
+    setBusy(true); setError('');
+    try {
+      const res = await fetch(`/api/admin/images/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+      setEditing('');
+      flash('保存しました');
+      load();
+      onDone();
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '保存に失敗しました');
+      return false;
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -269,32 +301,162 @@ export default function ImagePanel({ reloadKey, onDone }: { reloadKey: number; o
         <div className={styles.imgGrid}>
           {images.map((img) => (
             <div key={img.id} className={`${styles.imgCard} ${img.enabled ? '' : styles.imgOff}`}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={`/api/image/${img.id}`} alt={img.title} className={styles.imgThumb} />
+              {editing === img.id ? (
+                <ImageEditForm
+                  img={img}
+                  busy={busy}
+                  onCancel={() => setEditing('')}
+                  onSave={(data) => saveEdit(img.id, data)}
+                  onError={setError}
+                />
+              ) : (
+                <>
+                  {/* 差し替えても同じURLなので、更新日時を付けて取り直させます */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/api/image/${img.id}?t=${new Date(img.updatedAt).getTime()}`}
+                    alt={img.title}
+                    className={styles.imgThumb}
+                  />
 
-              <div className={styles.imgMeta}>
-                <p className={styles.imgTitle}>{img.title}</p>
-                {img.note && <p className={styles.imgNote}>{img.note}</p>}
-                {img.tags.length > 0 && (
-                  <p className={styles.imgTags}>{img.tags.map((t) => `#${t}`).join(' ')}</p>
-                )}
-                <p className={styles.imgSize}>
-                  {img.width}×{img.height}　{(img.size / 1024).toFixed(0)}KB
-                </p>
+                  <div className={styles.imgMeta}>
+                    <p className={styles.imgTitle}>{img.title}</p>
+                    {img.caption && <p className={styles.imgCaption}>説明：{img.caption}</p>}
+                    {img.note && <p className={styles.imgNote}>{img.note}</p>}
+                    {img.tags.length > 0 && (
+                      <p className={styles.imgTags}>{img.tags.map((t) => `#${t}`).join(' ')}</p>
+                    )}
+                    <p className={styles.imgSize}>
+                      {img.width}×{img.height}　{(img.size / 1024).toFixed(0)}KB
+                    </p>
 
-                <div className={styles.btnRow}>
-                  <label className={styles.checkRow}>
-                    <input type="checkbox" checked={img.enabled}
-                      onChange={() => patch(img.id, { enabled: !img.enabled })} />
-                    会話に出す
-                  </label>
-                  <button type="button" className={styles.chip} onClick={() => remove(img)}>削除</button>
-                </div>
-              </div>
+                    <div className={styles.btnRow}>
+                      <label className={styles.checkRow}>
+                        <input type="checkbox" checked={img.enabled}
+                          onChange={() => patch(img.id, { enabled: !img.enabled })} />
+                        会話に出す
+                      </label>
+                      <button type="button" className={styles.chip}
+                        onClick={() => { setError(''); setEditing(img.id); }}>編集</button>
+                      <button type="button" className={styles.dangerChip}
+                        onClick={() => remove(img)}>削除</button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ───────────── 登録済みの画像を編集する ───────────── */
+
+/**
+ * 名前・説明・AIへの説明・ことばを書き換えます。
+ * 画像そのものの差し替えもここで行います。
+ *
+ * 入力中の値はこの中だけで持ち、「保存する」を押したときだけ送ります。
+ * 途中でやめれば、元の内容はそのままです。
+ */
+function ImageEditForm({ img, busy, onCancel, onSave, onError }: {
+  img: Img;
+  busy: boolean;
+  onCancel: () => void;
+  onSave: (data: Record<string, unknown>) => Promise<boolean>;
+  onError: (m: string) => void;
+}) {
+  const [title, setTitle] = useState(img.title);
+  const [caption, setCaption] = useState(img.caption || '');
+  const [note, setNote] = useState(img.note || '');
+  const [tags, setTags] = useState(img.tags.join(' '));
+  /** 差し替える画像。選んでいなければ null で、絵は今のままです */
+  const [next, setNext] = useState<{ base64: string; width: number; height: number } | null>(null);
+  const [preview, setPreview] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const pickNew = async (file: File) => {
+    if (!file.type.startsWith('image/')) { onError('画像ファイルを選んでください'); return; }
+    try {
+      const r = await shrink(file);
+      setNext(r);
+      setPreview(`data:image/jpeg;base64,${r.base64}`);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : '画像を読み取れませんでした');
+    }
+  };
+
+  const save = async () => {
+    if (!title.trim()) { onError('名前を入れてください'); return; }
+    await onSave({
+      title,
+      caption,
+      note,
+      tags: tags.split(/[,、\s]+/).map((t) => t.trim()).filter(Boolean),
+      ...(next
+        ? { base64: next.base64, width: next.width, height: next.height, mediaType: 'image/jpeg' }
+        : {}),
+    });
+  };
+
+  return (
+    <div className={styles.imgEdit}>
+      <input ref={fileRef} type="file" accept="image/*" className={styles.hiddenFile}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) pickNew(f); e.target.value = ''; }} />
+
+      <div className={styles.imgEditTop}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={preview || `/api/image/${img.id}?t=${new Date(img.updatedAt).getTime()}`}
+          alt={title}
+          className={styles.imgThumbSm}
+        />
+        <div className={styles.imgEditPic}>
+          <button type="button" className={styles.chip} onClick={() => fileRef.current?.click()}>
+            画像を差し替える
+          </button>
+          {next && (
+            <button type="button" className={styles.linkBtn}
+              onClick={() => { setNext(null); setPreview(''); }}>
+              差し替えをやめる
+            </button>
+          )}
+          <p className={styles.dropHint}>
+            {next ? '保存すると、この画像に入れ替わります' : '絵だけ新しくしたいときに使います'}
+          </p>
+        </div>
+      </div>
+
+      <label className={styles.fieldLabel}>
+        名前（管理用）
+        <input className={styles.input} value={title} onChange={(e) => setTitle(e.target.value)} />
+      </label>
+
+      <label className={styles.fieldLabel}>
+        画像の下に出す説明
+        <input className={styles.input} value={caption} onChange={(e) => setCaption(e.target.value)}
+          placeholder="間取り図" />
+      </label>
+
+      <label className={styles.fieldLabel}>
+        どんなときに出すか（AIへの説明）
+        <textarea className={styles.textarea} rows={3} value={note}
+          onChange={(e) => setNote(e.target.value)} />
+      </label>
+
+      <label className={styles.fieldLabel}>
+        ことば（読点か空白で区切る）
+        <input className={styles.input} value={tags} onChange={(e) => setTags(e.target.value)} />
+      </label>
+
+      <div className={styles.btnRow}>
+        <button type="button" className={styles.primaryBtn} disabled={busy} onClick={save}>
+          {busy ? '保存中...' : '保存する'}
+        </button>
+        <button type="button" className={styles.chip} disabled={busy} onClick={onCancel}>やめる</button>
+      </div>
     </div>
   );
 }
