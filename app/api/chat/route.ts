@@ -241,10 +241,24 @@ async function saveChatLog(
         maskPii(assistantResponse, apiKey),
       ]);
 
+      // ご質問と回答に、わざと1ミリ秒ずらした時刻を入れます。
+      //
+      // createMany は2件を1つの命令で入れるため、createdAt の既定値（now()）が
+      // 両方まったく同じ時刻になります。
+      // 読み出すとき createdAt だけで並べ替えると、同じ時刻どうしの順番は
+      // データベースが決めるので、回答が先に出ることがありました。
+      // （ページを閉じて開き直したとき、質問と回答が逆に見える原因です）
+      const at = Date.now();
       await prisma.chatMessage.createMany({
         data: [
-          { sessionId: session.id, role: 'user', content: maskedUserContent },
-          { sessionId: session.id, role: 'assistant', content: maskedAssistantContent },
+          {
+            sessionId: session.id, role: 'user',
+            content: maskedUserContent, createdAt: new Date(at),
+          },
+          {
+            sessionId: session.id, role: 'assistant',
+            content: maskedAssistantContent, createdAt: new Date(at + 1),
+          },
         ],
       });
 
