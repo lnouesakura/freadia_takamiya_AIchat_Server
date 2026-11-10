@@ -45,7 +45,12 @@ const SOURCE_LABEL: Record<string, string> = {
 // 画面には出しません。販売担当者が見ても何を指すのか分からないためです。
 // 判定は lib/knowledgeGuard.ts 側で行っています。
 
-type Tab = 'matrix' | 'persona' | 'faq';
+interface QuestionSet {
+  id: string; name: string; match: string;
+  questionIds: string[]; sort: number; enabled: boolean;
+}
+
+type Tab = 'matrix' | 'persona' | 'faq' | 'suggest';
 
 export default function KnowledgeDesignPage() {
   const [tab, setTab] = useState<Tab>('matrix');
@@ -104,6 +109,7 @@ export default function KnowledgeDesignPage() {
           ['matrix', `情報マトリクス（${matrices.length}）`],
           ['persona', `ペルソナ（${personas.length}）`],
           ['faq', `想定問答（${faqs.length}）`],
+          ['suggest', '質問候補'],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -129,6 +135,7 @@ export default function KnowledgeDesignPage() {
           {tab === 'matrix' && <MatrixPanel matrices={matrices} onSaved={load} />}
           {tab === 'persona' && <PersonaPanel personas={personas} matrices={matrices} onSaved={load} />}
           {tab === 'faq' && <FaqPanel faqs={faqs} matrices={matrices} onSaved={load} />}
+          {tab === 'suggest' && <SuggestPanel faqs={faqs} />}
         </>
       )}
     </div>
@@ -579,6 +586,236 @@ function FaqRow({ f, state, missingTitles, refTitles, open, onToggle, onSaved }:
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ───────────── 質問候補（ページごとのよくあるご質問） ───────────── */
+
+/**
+ * チャットの最初に出す「よくあるご質問」を、ページごとに決めます。
+ *
+ * ページの見分けは、そのページのURLに含まれる文字で行います。
+ * 例：「plan.php」と書いておくと、.../plan.php を開いているときに使われます。
+ * 空のものは、どれにも当てはまらなかったときの既定になります。
+ * ページが増えたら「＋ ページと質問を追加」から足せます。
+ *
+ * 質問そのものは想定問答から選びます。文言を直したいときは
+ * 「想定問答」タブで直すと、ボタンの文字もそのまま変わります。
+ */
+function SuggestPanel({ faqs }: { faqs: Faq[] }) {
+  const [sets, setSets] = useState<QuestionSet[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<QuestionSet | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [q, setQ] = useState('');
+
+  const load = () => {
+    setLoading(true);
+    fetch('/api/admin/question-sets')
+      .then((r) => r.json())
+      .then((d) => setSets(d.sets || []))
+      .catch(() => setSets([]))
+      .finally(() => setLoading(false));
+  };
+  useEffect(load, []);
+
+  const qById = useMemo(() => new Map(faqs.map((f) => [f.id, f.q])), [faqs]);
+
+  const save = async (set: QuestionSet) => {
+    setBusy(true); setMsg('');
+    try {
+      const res = await fetch('/api/admin/question-sets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save', set }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setMsg(d.error || '保存に失敗しました'); return; }
+      setEditing(null);
+      setMsg('保存しました');
+      load();
+    } catch {
+      setMsg('通信に失敗しました');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (set: QuestionSet) => {
+    if (!window.confirm(`「${set.name}」を削除します。よろしいですか？`)) return;
+    setBusy(true);
+    try {
+      await fetch('/api/admin/question-sets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', id: set.id }),
+      });
+      load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) return <p className={styles.stateMsg}>読み込み中...</p>;
+
+  const shown = faqs.filter((f) => !q || f.q.includes(q));
+
+  /**
+   * 編集欄です。
+   *
+   * 直しているページのカードのすぐ下に出します。
+   * 以前は一覧をすべて並べたあとの一番下に出していたため、
+   * 上のほうのページで「編集する」を押しても画面の外に出てしまい、
+   * 何も起きていないように見えていました。
+   */
+  const editorBox = (cur: QuestionSet) => (
+    <div className={styles.setEditor}>
+      <p className={styles.fieldLabel}>ページの名前（管理用）</p>
+      <input className={styles.input} value={cur.name}
+        placeholder="例：プラン"
+        onChange={(e) => setEditing({ ...cur, name: e.target.value })} />
+
+      <p className={styles.fieldLabel}>このURLを含むページで使う</p>
+      <input className={styles.input} value={cur.match}
+        placeholder="例：plan.php　空にすると、どれにも当てはまらないときに使われます"
+        onChange={(e) => setEditing({ ...cur, match: e.target.value })} />
+
+      <p className={styles.fieldLabel}>
+        出す質問（上から順に出ます・最大5問まで表示されます）
+      </p>
+      {cur.questionIds.length === 0 && (
+        <p className={styles.stateMsg}>まだ選んでいません。下から選んでください。</p>
+      )}
+      <ol className={styles.setList}>
+        {cur.questionIds.map((id, i) => (
+          <li key={id} className={styles.setItem}>
+            <span className={styles.setItemText}>{qById.get(id) || id}</span>
+            <button type="button" className={styles.rowBtn} disabled={i === 0}
+              onClick={() => {
+                const next = [...cur.questionIds];
+                [next[i - 1], next[i]] = [next[i], next[i - 1]];
+                setEditing({ ...cur, questionIds: next });
+              }}>上へ</button>
+            <button type="button" className={styles.rowBtn}
+              disabled={i === cur.questionIds.length - 1}
+              onClick={() => {
+                const next = [...cur.questionIds];
+                [next[i], next[i + 1]] = [next[i + 1], next[i]];
+                setEditing({ ...cur, questionIds: next });
+              }}>下へ</button>
+            <button type="button" className={`${styles.rowBtn} ${styles.rowBtnDanger}`}
+              onClick={() => setEditing({
+                ...cur,
+                questionIds: cur.questionIds.filter((x) => x !== id),
+              })}>外す</button>
+          </li>
+        ))}
+      </ol>
+
+      <p className={styles.fieldLabel}>想定問答から選ぶ</p>
+      <input className={styles.input} value={q} placeholder="質問を検索"
+        onChange={(e) => setQ(e.target.value)} />
+      <div className={styles.pickBox}>
+        {shown.slice(0, 60).map((f) => {
+          const on = cur.questionIds.includes(f.id);
+          return (
+            <button key={f.id} type="button"
+              className={`${styles.pickQ} ${on ? styles.pickQOn : ''}`}
+              onClick={() => setEditing({
+                ...cur,
+                questionIds: on
+                  ? cur.questionIds.filter((x) => x !== f.id)
+                  : [...cur.questionIds, f.id],
+              })}>
+              {f.q}
+            </button>
+          );
+        })}
+        {shown.length > 60 && (
+          <p className={styles.stateMsg}>
+            ほかに {shown.length - 60} 件あります。検索で絞ってください。
+          </p>
+        )}
+      </div>
+
+      <div className={styles.btnRow}>
+        <button type="button" className={styles.runBtn} disabled={busy || !cur.name.trim()}
+          onClick={() => save(cur)}>
+          {busy ? '保存中...' : '保存する'}
+        </button>
+        <button type="button" className={styles.subBtn} disabled={busy}
+          onClick={() => setEditing(null)}>やめる</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={styles.panel}>
+      <p className={styles.lead}>
+        チャットの最初に出す「よくあるご質問」を、ページごとに決めます。
+        <br />
+        ページの見分けは、そのページのURLに含まれる文字で行います。
+        たとえば「plan.php」と入れておくと、URLに plan.php を含むページで使われます。
+        どれにも当てはまらなかったときは、<strong>URLの欄が空のもの</strong>が使われます。
+        ページが増えたときは、下の「＋ ページと質問を追加」から足してください。
+      </p>
+      <p className={styles.lead}>
+        2通目以降は、直前に聞かれたことと同じ話題の質問が
+        「こんなこともお聞きいただけます」として自動で出ます。こちらの設定は要りません。
+      </p>
+
+      {sets.length === 0 && (
+        <p className={styles.stateMsg}>
+          まだありません。まずはURLの欄を空にしたまま1つ作ると、全ページで使われます。
+        </p>
+      )}
+
+      {sets.map((set) => {
+        const open = editing?.id === set.id;
+        return (
+          <div key={set.id}>
+            <div className={`${styles.setCard} ${open ? styles.setCardOpen : ''}`}>
+              <div className={styles.setHead}>
+                <span className={styles.setName}>{set.name}</span>
+                <span className={styles.setMatch}>
+                  {set.match ? `URLに「${set.match}」を含むページ` : 'どれにも当てはまらないとき（既定）'}
+                </span>
+                <span className={styles.setCount}>{set.questionIds.length}問</span>
+                <button type="button" className={styles.rowBtn} disabled={busy}
+                  onClick={() => setEditing(open ? null : set)}>
+                  {open ? '閉じる' : '編集する'}
+                </button>
+                <button type="button" className={`${styles.rowBtn} ${styles.rowBtnDanger}`}
+                  disabled={busy} onClick={() => remove(set)}>削除</button>
+              </div>
+              {!open && (
+                <ol className={styles.setList}>
+                  {set.questionIds.map((id) => (
+                    <li key={id} className={styles.setItem}>
+                      {qById.get(id) || `（想定問答にありません：${id}）`}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+            {open && editing && editorBox(editing)}
+          </div>
+        );
+      })}
+
+      <div className={styles.btnRow}>
+        <button type="button" className={styles.runBtn} disabled={busy}
+          onClick={() => setEditing({
+            id: '', name: '', match: '', questionIds: [], sort: sets.length, enabled: true,
+          })}>
+          ＋ ページと質問を追加
+        </button>
+        {msg && <span className={styles.savedMsg}>{msg}</span>}
+      </div>
+
+      {editing && !editing.id && editorBox(editing)}
     </div>
   );
 }

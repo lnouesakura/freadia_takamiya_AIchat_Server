@@ -17,7 +17,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import ChatPanelHeader from '@/components/chat/ChatPanelHeader/ChatPanelHeader';
 import ChatMessages, { Message } from '@/components/chat/ChatMessages/ChatMessages';
 import ChatInput from '@/components/chat/ChatInput/ChatInput';
-import QuickQuestions from '@/components/chat/QuickQuestions/QuickQuestions';
+import QuickQuestions, { SuggestionSection } from '@/components/chat/QuickQuestions/QuickQuestions';
 import MediaPane from '@/components/chat/MediaPane/MediaPane';
 import ConsentGate from '@/components/chat/ConsentGate/ConsentGate';
 
@@ -59,6 +59,26 @@ interface Props {
   newSession?: boolean;
 }
 
+/**
+ * チャットを出しているページのURLを返します。
+ *
+ * ページごとに違う「よくあるご質問」を出すために使います。
+ * 窓（iframe）の中からは親ページのURLを直接読めないので、
+ * 貼り付け側（aichat.php）が ?page= に入れて渡します。
+ * 入っていないときは、参照元（referrer）で代用します。
+ */
+function hostPage(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const p = new URLSearchParams(window.location.search).get('page');
+    if (p) return p;
+    if (window.self !== window.top && document.referrer) return document.referrer;
+    return window.location.pathname;
+  } catch {
+    return '';
+  }
+}
+
 export default function ChatWidget({
   floating = false,
   defaultOpen = true,
@@ -72,6 +92,11 @@ export default function ChatWidget({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  /** いま出している質問候補 */
+  const [suggestions, setSuggestions] = useState<SuggestionSection[]>([]);
+  /** すでに出した・聞かれた質問。同じものを出し続けないために覚えます */
+  const askedRef = useRef<string[]>([]);
 
   // ── 表示の状態 ──
   const [expanded, setExpanded] = useState(false);      // 拡大表示中か
@@ -237,6 +262,17 @@ export default function ChatWidget({
     prevVoiceEnabled.current = voiceEnabled;
   }, [voiceEnabled, playFile, characterId]);
 
+  // 同意が済んだら、そのページ向けの「よくあるご質問」を取りに行きます。
+  // 同意前に出しても押せないので、済んでからにしています。
+  const loadedSuggestions = useRef(false);
+  useEffect(() => {
+    if (consented !== true || loadedSuggestions.current) return;
+    loadedSuggestions.current = true;
+    void loadSuggestions('');
+    // loadSuggestions は毎回作り直されますが、呼ぶのは1回だけなので追いません
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consented]);
+
   // ── ストリーミング中に、文が完成したそばから読み上げキューへ送る ──
   const streamBufferRef = useRef('');
   const sentPosRef = useRef(0);
@@ -265,9 +301,36 @@ export default function ChatWidget({
     [voiceEnabled, enqueue, characterId],
   );
 
+  /**
+   * 質問候補を取りに行きます。
+   *
+   * lastUserText が空なら冒頭の候補、入っていれば
+   * その話題に沿った候補が返ります。
+   * 失敗しても何もしません（ボタンが出ないだけで、会話は続けられます）。
+   */
+  const loadSuggestions = async (lastUserText = '') => {
+    try {
+      const res = await fetch('/api/suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageUrl: hostPage(), lastUserText, asked: askedRef.current }),
+      });
+      if (!res.ok) return;
+      const d = await res.json();
+      const sections: SuggestionSection[] = Array.isArray(d?.sections) ? d.sections : [];
+      setSuggestions(sections);
+    } catch {
+      /* 候補が出ないだけなので、何もしません */
+    }
+  };
+
   const handleSend = async (content?: string) => {
     const text = content ?? input.trim();
     if (!text || isLoading) return;
+
+    // 実際に聞かれたことだけを覚えます。
+    // 画面に出しただけの候補は消しません（押されなかった質問は残します）。
+    askedRef.current = [...askedRef.current, text].slice(-60);
 
     const userMessage: Message = { role: 'user', content: text };
     const updatedMessages = [...messages, userMessage];
@@ -344,12 +407,10 @@ export default function ChatWidget({
       });
     } finally {
       setIsLoading(false);
+      // 返答が終わってから、いま聞かれたことに沿った候補を出します
+      void loadSuggestions(text);
     }
   };
-
-  // お客様がまだ一度も発言していない間だけ「よくあるご質問」を出す。
-  // 常に出しておきたい場合は、下の {!hasUserMessage && ...} の条件を外してください。
-  const hasUserMessage = messages.some((m) => m.role === 'user');
 
   // 直近のAI回答に画像が含まれていれば、拡大表示のとき左の枠に出します
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
@@ -461,7 +522,8 @@ export default function ChatWidget({
                 onSelect={(q) => handleSend(q)}
                 disabled={isLoading}
                 wide={expanded && !showMedia}
-                hidden={hasUserMessage}
+                sections={suggestions}
+                hidden={isLoading}
               />
 
               <ChatInput

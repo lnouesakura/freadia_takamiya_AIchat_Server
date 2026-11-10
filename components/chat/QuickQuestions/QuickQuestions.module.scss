@@ -25,6 +25,12 @@ $ease: cubic-bezier(.22, .61, .36, 1);
   pointer-events: none;
 }
 
+// 「よくあるご質問」と「こんなことも…」を続けて出すので、
+// まとまりごとに間を取ります
+.section {
+  & + & { margin-top: 12px; }
+}
+
 .label {
   margin-bottom: 13px;
   font-family: $font-sans;

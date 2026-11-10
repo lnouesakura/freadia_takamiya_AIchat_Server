@@ -233,6 +233,8 @@ model KnowledgeMatrix {
 /// 想定問答。回答本文は原則持たず、方針とリスク区分を持つ。
 model FaqSeed {
   id        String   @id
+  /// false にすると、質問候補にも想定問答の固定回答にも使わない
+  enabled   Boolean  @default(true)
   q         String
   alt       String[]
   /// 参照する KnowledgeMatrix.code の配列
@@ -331,4 +333,27 @@ model PropertyImage {
 
   @@index([enabled, sort])
   @@map("property_images")
+}
+
+/// チャットに出す「よくあるご質問」のまとまり。
+///
+/// ページごとに違う質問を出すために使う。
+/// match にページURLの一部を入れておくと、そのページで表示される。
+/// 例：match="/plan" なら https://例.jp/plan/ を開いているときに使われる。
+/// match が空のものは、どれにも当たらなかったときの既定になる。
+model QuestionSet {
+  id          String   @id @default(cuid())
+  /// 管理画面に出す名前（例：間取りページ）
+  name        String
+  /// ページURLにこの文字が含まれたら、このまとまりを使う。空なら既定
+  match       String   @default("")
+  /// 出す質問。FaqSeed.id を出したい順に並べる
+  questionIds String[]
+  /// 当てはめる順番。小さいほど先に調べる
+  sort        Int      @default(0)
+  enabled     Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+
+  @@map("question_sets")
 }

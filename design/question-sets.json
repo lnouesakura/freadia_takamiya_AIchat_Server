@@ -1,0 +1,102 @@
+{
+  "note": "ページごとの「よくあるご質問」の初期データです。管理画面（AI知識設計 → 質問候補）から追加・編集・削除できます。match はページURLに含まれる文字で、空のものがどれにも当てはまらないときの既定です。questionIds は design/faq-seed.json の id です。",
+  "site": "https://test.qlea.jp/freadia/takamiya_AIchat/",
+  "sets": [
+    {
+      "name": "Aタイプ",
+      "match": "type_A.php",
+      "sort": 0,
+      "questionIds": [
+        "Q-M-PLN-04",
+        "Q-M-PLN-05",
+        "Q-M-PLN-08",
+        "Q-M-EQP-01",
+        "Q-M-VIW-08"
+      ]
+    },
+    {
+      "name": "Eタイプ",
+      "match": "type_E.php",
+      "sort": 1,
+      "questionIds": [
+        "Q-M-PLN-02",
+        "Q-M-PLN-06",
+        "Q-M-PLN-07",
+        "Q-M-EQP-02",
+        "Q-M-VIW-03"
+      ]
+    },
+    {
+      "name": "Lタイプ",
+      "match": "type_L.php",
+      "sort": 2,
+      "questionIds": [
+        "Q-M-PLN-02",
+        "Q-M-PLN-08",
+        "Q-M-EQP-04",
+        "Q-M-SND-01",
+        "Q-M-VIW-02"
+      ]
+    },
+    {
+      "name": "プラン",
+      "match": "plan.php",
+      "sort": 3,
+      "questionIds": [
+        "Q-M-PLN-01",
+        "Q-M-PLN-02",
+        "Q-M-PLN-03",
+        "Q-M-PLN-06",
+        "Q-M-VIW-03"
+      ]
+    },
+    {
+      "name": "アクセス・ロケーション",
+      "match": "accesslocation.php",
+      "sort": 4,
+      "questionIds": [
+        "Q-M-STN-01",
+        "Q-M-ACC-01",
+        "Q-M-SHP-01",
+        "Q-P-C-01",
+        "Q-M-MED-01"
+      ]
+    },
+    {
+      "name": "デザイン",
+      "match": "design.php",
+      "sort": 5,
+      "questionIds": [
+        "Q-M-CMF-01",
+        "Q-M-CMF-05",
+        "Q-M-OVW-02",
+        "Q-M-SEC-01",
+        "Q-M-VIW-01"
+      ]
+    },
+    {
+      "name": "現地案内図",
+      "match": "map.php",
+      "sort": 6,
+      "questionIds": [
+        "Q-M-PRK-01",
+        "Q-M-SHP-03",
+        "Q-M-EDU-03",
+        "Q-M-PRK-02",
+        "Q-M-TWN-09"
+      ]
+    },
+    {
+      "name": "トップ・そのほかのページ（既定）",
+      "match": "",
+      "sort": 9,
+      "questionIds": [
+        "Q-M-PRC-01",
+        "Q-M-PLN-01",
+        "Q-M-STN-01",
+        "Q-M-OVW-05",
+        "Q-M-VST-03"
+      ]
+    }
+  ]
+}

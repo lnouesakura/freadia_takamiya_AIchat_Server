@@ -1,25 +1,26 @@
 'use client';
 
 // components/chat/QuickQuestions/QuickQuestions.tsx
-// チャット画面に「よくあるご質問」を並べ、押すとその質問がそのまま送信されます。
+// チャット画面に質問候補を並べ、押すとその質問がそのまま送信されます。
+//
+// 以前はこのファイルに質問を直接書いていたため、
+// 変えるたびにコードを触って入れ直す必要がありました。
+// いまは管理画面（AI知識設計 → 質問候補）で決めた内容を
+// /api/suggestions から受け取って並べます。
+//
+// 候補は2つのまとまりで届きます。
+//   よくあるご質問                   … そのページ向けに決めたもの
+//   こんなこともお聞きいただけます   … 直前に聞かれたことと同じ話題のもの
 import styles from './QuickQuestions.module.scss';
 
-// ▼ 表示する質問はここを編集してください。
-//    label    … ボタンに出る短い文字（長いと2行になって崩れます）
-//    question … 実際にAIへ送られる文章。きちんとした一文にしておくと回答の精度が上がります。
-//
-//    物件情報に載っていないこと（価格など）を並べると「確認します」という返答になるので、
-//    答えられる内容を選ぶと、デモとして見栄えがよくなります。
-const QUESTIONS: { label: string; question: string }[] = [
-  { label: '周辺環境について', question: '周辺環境について教えてください' },
-  { label: 'セキュリティは？', question: 'セキュリティはどうなっていますか？' },
-  { label: '子育て環境は？', question: '子育て環境について知りたいです' },
-  { label: 'キッチンの設備について', question: 'キッチンの設備を教えてください' },
-  { label: '駐車場はある？', question: '駐車場はありますか？' },
-  { label: '断熱や省エネについて', question: '断熱や省エネ性能について教えてください' },
-];
+export type SuggestionSection = {
+  label: string;
+  questions: string[];
+};
 
 interface Props {
+  /** 出す候補。空なら何も出しません */
+  sections: SuggestionSection[];
   onSelect: (q: string) => void;
   disabled: boolean;
   /** 拡大表示のとき true。ボタンが2列から3列になります */
@@ -29,35 +30,44 @@ interface Props {
    * 消さずに畳んでいるのは、すっと閉じる動きをつけるためです。
    */
   hidden?: boolean;
-  /** 見出しの文言（既定：よくあるご質問） */
-  label?: string;
 }
 
 export default function QuickQuestions({
+  sections,
   onSelect,
   disabled,
   wide = false,
   hidden = false,
-  label = 'よくあるご質問',
 }: Props) {
+  const empty = !sections.some((s) => s.questions.length);
+
   return (
-    <div className={`${styles.wrapper} ${hidden ? styles.wrapperHidden : ''}`} aria-hidden={hidden}>
-      <p className={styles.label}>{label}</p>
-      <div className={`${styles.list} ${wide ? styles.listWide : ''}`}>
-        {QUESTIONS.map((q) => (
-          <button
-            key={q.label}
-            type="button"
-            onClick={() => onSelect(q.question)}
-            disabled={disabled || hidden}
-            tabIndex={hidden ? -1 : 0}
-            className={styles.chip}
-            title={q.question}
-          >
-            {q.label}
-          </button>
-        ))}
-      </div>
+    <div
+      className={`${styles.wrapper} ${hidden || empty ? styles.wrapperHidden : ''}`}
+      aria-hidden={hidden || empty}
+    >
+      {sections.map((section) => (
+        section.questions.length > 0 && (
+          <div key={section.label} className={styles.section}>
+            <p className={styles.label}>{section.label}</p>
+            <div className={`${styles.list} ${wide ? styles.listWide : ''}`}>
+              {section.questions.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => onSelect(q)}
+                  disabled={disabled || hidden}
+                  tabIndex={hidden ? -1 : 0}
+                  className={styles.chip}
+                  title={q}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      ))}
     </div>
   );
 }
