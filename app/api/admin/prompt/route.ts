@@ -44,7 +44,7 @@ const CUT_AFTER = [
 ];
 
 /** ここから先は物件情報・AI知識設計の領域 */
-const PROPERTY_START = '物件情報';
+const PROPERTY_START = '物件情報（登録済み）';
 
 export async function GET() {
   const session = await getServerSession(authOptions);

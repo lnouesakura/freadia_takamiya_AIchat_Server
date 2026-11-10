@@ -37,6 +37,13 @@ export async function buildChatPrompt(characterId?: string): Promise<string> {
   let salesTone = '';
   let salesTechnique = '';
   let extraChatKnowledge = '';
+  // 取り込んだ資料。物件情報タブの本文とは混ぜません。
+  //
+  // 以前は mansionData に continue して1つの文章にしていたため、
+  // 公式の設備仕様も、サイトから取り込んだ資料も、読み取りが崩れた資料も、
+  // すべて同じ「物件データ」に見えていました。
+  // どれを信じるかAIが判断できず、材質やスラブ厚の取り違えが起きていました。
+  let referenceDocs = '';
 
   // DBから読むものは、互いに関係がないので一度に投げます。
   //
@@ -80,8 +87,10 @@ export async function buildChatPrompt(characterId?: string): Promise<string> {
       categories.find((c) => c.id === categoryId)?.target ?? (categoryId === 'property' ? 'property' : 'chat');
     const propertyDocs = docs.filter((d) => targetOf(d.category) === 'property');
     const otherDocs = docs.filter((d) => targetOf(d.category) !== 'property');
+    // 物件情報タブの本文には混ぜず、別のかたまりとして渡します。
+    // 混ぜていたころは、公式の設備仕様と取り込んだ資料の区別が付きませんでした。
     if (propertyDocs.length) {
-      mansionData = `${mansionData}\n\n${propertyDocs.map((d) => `【${d.title}】\n${d.content}`).join('\n\n')}`;
+      referenceDocs = propertyDocs.map((d) => `【${d.title}】\n${d.content}`).join('\n\n');
     }
     if (otherDocs.length) {
       extraChatKnowledge = otherDocs.map((d) => `【${d.title}】\n${d.content}`).join('\n\n');
@@ -99,6 +108,7 @@ export async function buildChatPrompt(characterId?: string): Promise<string> {
     salesTechnique,
     extraChatKnowledge,
     mansionData,
+    referenceDocs,
   });
 
   // 残りの3つも互いに関係がないので、まとめて取りに行きます。

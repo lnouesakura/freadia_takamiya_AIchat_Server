@@ -15,13 +15,14 @@ import IntakePanel from './IntakePanel';
 import ImagePanel from './ImagePanel';
 import PropertyPanel from './PropertyPanel';
 import DocsPanel from './DocsPanel';
+import ConsistencyPanel from './ConsistencyPanel';
 import DesignPanel, { type Design } from './DesignPanel';
 import BackupPanel from './BackupPanel';
 import styles from './page.module.scss';
 
-type Tab = 'intake' | 'property' | 'images' | 'docs' | 'design' | 'backup';
+type Tab = 'intake' | 'property' | 'images' | 'docs' | 'consistency' | 'design' | 'backup';
 
-const TABS: Tab[] = ['intake', 'property', 'images', 'docs', 'design', 'backup'];
+const TABS: Tab[] = ['intake', 'property', 'images', 'docs', 'consistency', 'design', 'backup'];
 
 type Matrix = { code: string; required: string[]; requiredContent: string[]; status: string };
 
@@ -92,6 +93,7 @@ export default function KnowledgePage() {
           ['property', '物件情報'],
           ['images', '画像'],
           ['docs', docCount === null ? '資料' : `資料（${docCount}）`],
+          ['consistency', '整合性チェック'],
           ['design', '設計データ'],
           ['backup', 'バックアップ'],
         ] as [Tab, string][]).map(([key, label]) => (
@@ -107,6 +109,7 @@ export default function KnowledgePage() {
       {tab === 'property' && <PropertyPanel reloadKey={reloadKey} />}
       {tab === 'images' && <ImagePanel reloadKey={reloadKey} onDone={onApplied} />}
       {tab === 'docs' && <DocsPanel reloadKey={reloadKey} />}
+      {tab === 'consistency' && <ConsistencyPanel />}
       {tab === 'design' && <DesignPanel design={design} onDone={onApplied} />}
       {tab === 'backup' && <BackupPanel reloadKey={reloadKey} onDone={onApplied} />}
     </div>

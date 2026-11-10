@@ -134,7 +134,12 @@ ${list.map((t) => `・${t}`).join('\n')}${rest > 0 ? `\n（ほか ${rest} 件）
   const filled = (matrices || []).filter((m) => registered.has(m.code) && m.content?.trim());
   if (filled.length) {
     parts.push(
+      // 「正式な情報」と明記します。
+      // ここは項目ごとに精査して登録した内容なので、取り込んだ資料より上位です。
+      // ただし【物件情報（登録済み）】とは同列で、食い違うときは
+      // どちらかを選ばせず、担当者につなぐよう systemPrompt 側で定めています。
       `【登録済みの詳細情報】
+この物件について登録された正式な情報です。【物件情報（登録済み）】と同じ重みで扱ってください。
 ${filled.map((m) => `■ ${m.title}\n${m.content}`).join('\n\n')}`,
     );
   }

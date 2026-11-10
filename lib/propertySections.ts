@@ -151,23 +151,96 @@ export function describeHeadings(doc: PropertyDoc): string {
 }
 
 /**
- * 見出しごとのバッジ色。見出しは自由に増えるため、文字列から決めます。
- * 同じ見出しなら毎回同じ色になります。
+ * 見出しのジャンル。
+ *
+ * 以前は見出しの文字列からハッシュで色を決めていました。
+ * 同じ見出しなら毎回同じ色にはなりますが、色に意味がなく、
+ * 隣り合う見出しが別の色になるだけで読み取れるものがありませんでした。
+ *
+ * ここでは中身の種類で分けます。色が揃っていれば、
+ * 「間取りの話はこのあたり」と目で追えます。
+ *
+ * ■ 当てはめ方
+ * 上から順に見て、最初に当たったものになります。順番に意味があります。
+ *   例：「建築構造・設備面における防災設計チェック」は
+ *       「設備」も含みますが、先に「防災」で構造・性能に入ります。
+ *   例：「周辺環境」は「環境」も含みますが、先に「周辺」で立地に入ります。
+ * 新しい見出しを足したとき、どれにも当たらなければ「その他」になります。
  */
-const BADGE_COLORS: { bg: string; fg: string }[] = [
-  { bg: '#E6F1FB', fg: '#0C447C' },
-  { bg: '#E1F5EE', fg: '#085041' },
-  { bg: '#FAEEDA', fg: '#854F0B' },
-  { bg: '#FCEBEB', fg: '#A32D2D' },
-  { bg: '#EEEDFE', fg: '#3C3489' },
-  { bg: '#EAF3DE', fg: '#27500A' },
-  { bg: '#FBEAF0', fg: '#72243E' },
-  { bg: '#FAECE7', fg: '#712B13' },
-  { bg: '#F1EFE8', fg: '#444441' },
+export type Genre = {
+  key: string;
+  label: string;
+  bg: string;
+  fg: string;
+};
+
+const GENRES: (Genre & { words: string[] })[] = [
+  {
+    key: 'plan', label: '間取り・プラン',
+    bg: '#E6F1FB', fg: '#0C447C',
+    words: ['Select Plan', 'セレクトプラン', 'STYLE SELECT', '図面', '間取', '専有面積',
+      '建物・住戸', 'タイプ', 'プラン'],
+  },
+  {
+    key: 'structure', label: '構造・性能',
+    bg: '#EAF3DE', fg: '#27500A',
+    words: ['構造', '性能', '保証', '防災', '災害', 'リスク', '耐震', '省エネ', '品質'],
+  },
+  {
+    key: 'equipment', label: '設備仕様',
+    bg: '#E1F5EE', fg: '#085041',
+    words: ['設備', 'キッチン', 'サニタリー', 'バスルーム', 'アメニティ', 'セキュリティ',
+      '快適性', 'EQUIPMENT', '共用'],
+  },
+  {
+    key: 'location', label: '立地・周辺',
+    bg: '#FAEEDA', fg: '#854F0B',
+    words: ['アクセス', '周辺', 'AREA', '買い物', '教育', '医療', '公園', '公共施設',
+      '文化', '歴史', '駅', '案内図', '立地', '環境'],
+  },
+  {
+    key: 'money', label: '資金・税制',
+    bg: '#FCEBEB', fg: '#A32D2D',
+    words: ['資金', '税制', 'ローン', '減税', '地価', '価格', '資産', '売却', '参考地点'],
+  },
+  {
+    key: 'brand', label: 'ブランド・魅力',
+    bg: '#EEEDFE', fg: '#3C3489',
+    words: ['ブランド', 'コンセプト', 'セレクション', '希少'],
+  },
+  {
+    key: 'outline', label: '概要・売主',
+    bg: '#FBEAF0', fg: '#72243E',
+    words: ['基本情報', '販売概要', '売主', 'ギャラリー', '株式会社', '支社', '概要'],
+  },
+  {
+    key: 'note', label: '注意・その他',
+    bg: '#F1EFE8', fg: '#444441',
+    words: ['凡例', '表記', '注意', '未登録'],
+  },
 ];
 
+/** どれにも当てはまらなかったとき */
+const OTHER: Genre = { key: 'other', label: 'その他', bg: '#F1EFE8', fg: '#444441' };
+
+/** 見出しがどのジャンルかを返します */
+export function headingGenre(heading: string): Genre {
+  const h = heading.toLowerCase();
+  for (const g of GENRES) {
+    if (g.words.some((w) => h.includes(w.toLowerCase()))) {
+      return { key: g.key, label: g.label, bg: g.bg, fg: g.fg };
+    }
+  }
+  return OTHER;
+}
+
+/** 画面に出すジャンルの一覧（並び順つき） */
+export function allGenres(): Genre[] {
+  return [...GENRES.map((g) => ({ key: g.key, label: g.label, bg: g.bg, fg: g.fg })), OTHER];
+}
+
+/** 見出しごとのバッジ色。ジャンルの色です */
 export function headingColor(heading: string): { bg: string; fg: string } {
-  let sum = 0;
-  for (let i = 0; i < heading.length; i++) sum = (sum + heading.charCodeAt(i) * (i + 1)) % 9973;
-  return BADGE_COLORS[sum % BADGE_COLORS.length];
+  const g = headingGenre(heading);
+  return { bg: g.bg, fg: g.fg };
 }

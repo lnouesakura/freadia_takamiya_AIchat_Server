@@ -917,3 +917,345 @@
 @media (max-width: $bp-md) {
   .imgPreview { flex: 1 1 100%; }
 }
+
+
+.resultHead {
+  margin: 18px 0 10px; font-size: 14px; font-weight: 600; letter-spacing: .06em;
+  color: $charcoal; font-family: $font-serif-jp;
+}
+
+
+.issueCard {
+  margin-bottom: 10px; padding: 12px 14px;
+  border: 1px solid rgba($stone, .3); border-radius: $radius-md; background: $white;
+}
+
+// 食い違いは目立たせます
+.issueConflict {
+  border-color: rgba($red-error, .4);
+  background: rgba($red-error, .03);
+}
+
+.issueHead {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  background: none; border: none; padding: 0; cursor: pointer; text-align: left;
+  @include focus-ring;
+}
+
+.issueTopic {
+  flex: 1; min-width: 0;
+  font-size: 12px; font-weight: 600; color: $charcoal; font-family: $font-serif-jp;
+}
+
+.issueCount {
+  font-size: 10px; color: $stone; font-family: $font-mono; white-space: nowrap;
+}
+
+.issueReason {
+  margin: 8px 0 0; font-size: 11px; line-height: 1.8;
+  color: $red-error; font-family: $font-serif-jp;
+}
+
+// 閉じているときに、値だけ並べて見せます
+.claimPeek {
+  margin: 6px 0 0; font-size: 11px; line-height: 1.7;
+  color: $charcoal-light; font-family: $font-serif-jp;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.claimList {
+  margin: 10px 0 0; padding: 0; list-style: none;
+  display: flex; flex-direction: column; gap: 8px;
+}
+
+.claimItem {
+  padding: 9px 12px; border-radius: $radius-md;
+  background: rgba($cream-dark, .45);
+}
+
+.claimWhere {
+  margin: 0 0 3px; font-size: 10px; color: $navy; font-family: $font-serif-jp;
+}
+
+.claimValue {
+  margin: 0; font-size: 11px; line-height: 1.8;
+  color: $charcoal; font-family: $font-serif-jp;
+}
+
+.claimQuote {
+  margin: 4px 0 0; font-size: 10px; line-height: 1.7;
+  color: $stone; font-family: $font-serif-jp;
+}
+
+// ── 整合性チェック：調べる範囲の選択 ──────────────
+// もとは小さな文字ボタンで、押せると分かりにくいものでした。
+// 資料タブと同じ「枠のあるカード」にして、選んでいる側を金色で示します。
+.scopeRow {
+  display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px;
+}
+
+.scopeCard {
+  flex: 1 1 260px; min-width: 0;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
+  padding: 16px 18px; cursor: pointer; text-align: left;
+  border: 1px solid rgba($stone, .35); border-radius: $radius-md;
+  background: $white;
+  transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
+
+  &:hover:not(:disabled) {
+    border-color: $gold;
+    background: rgba($gold, .05);
+  }
+  &:disabled { opacity: .5; cursor: not-allowed; }
+  @include focus-ring;
+}
+
+// 選んでいる側
+.scopeOn {
+  border-color: $gold;
+  border-width: 2px;
+  // 枠が1px太くなるぶん、中身がずれないように詰めます
+  padding: 15px 17px;
+  background: rgba($gold, .1);
+  box-shadow: 0 2px 10px rgba($gold, .18);
+}
+
+.scopeName {
+  font-size: 13px; font-weight: 600; letter-spacing: .04em;
+  color: $charcoal; font-family: $font-serif-jp;
+}
+
+.scopeHint {
+  font-size: 11px; line-height: 1.7; color: $stone; font-family: $font-serif-jp;
+}
+
+.scopeScale {
+  margin-top: 2px; padding: 3px 10px; border-radius: $radius-full;
+  background: rgba($stone, .12); color: $charcoal-light;
+  font-size: 10px; font-family: $font-mono;
+}
+
+// 「チェックする」。小さく詰まって見えたので、資料タブの大きいボタンに合わせます
+.runRow { margin-top: 18px; }
+
+.runBtn {
+  padding: 13px 40px; border: none; border-radius: $radius-md; cursor: pointer;
+  background: $gold; color: $white;
+  font-size: 14px; font-weight: 600; letter-spacing: .05em; font-family: $font-serif-jp;
+  box-shadow: 0 2px 10px rgba($gold, .35);
+  transition: background .2s ease, box-shadow .2s ease, transform .15s ease;
+
+  &:hover:not(:disabled) {
+    background: $gold-dark;
+    box-shadow: 0 4px 16px rgba($gold, .45);
+  }
+  &:active:not(:disabled) { transform: translateY(1px); }
+  &:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+  @include focus-ring;
+}
+
+// ── 整合性チェック：調べる範囲の選択 ──────────────
+// 文字だけのボタンだと押せると分からなかったので、
+// 資料タブの枠と同じように、箱で選ばせます。
+.scopeGrid {
+  display: flex; gap: 12px; flex-wrap: wrap; width: 100%;
+  margin: 2px 0 20px;
+}
+
+.scopeCard {
+  flex: 1 1 260px; min-width: 0;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 16px 18px; cursor: pointer; text-align: left;
+  border: 2px solid rgba($stone, .35); border-radius: $radius-md;
+  background: $white;
+  transition: border-color .2s ease, background .2s ease;
+
+  &:hover:not(:disabled) { border-color: rgba($gold, .6); background: rgba($gold, .04); }
+  &:disabled { opacity: .5; cursor: not-allowed; }
+  @include focus-ring;
+}
+
+// 選ばれているほうをはっきり出します
+.scopeOn {
+  border-color: $gold-dark;
+  background: rgba($gold, .12);
+}
+
+.scopeName {
+  font-size: 13px; font-weight: 600; color: $charcoal; font-family: $font-serif-jp;
+}
+.scopeDesc {
+  font-size: 11px; line-height: 1.7; color: $stone; font-family: $font-serif-jp;
+}
+.scopeScale {
+  font-size: 10px; color: $stone-light; font-family: $font-mono;
+}
+
+// 実行ボタンの上に余白を取ります（前は文章にくっついていました）
+.runRow {
+  margin-top: 4px; padding-top: 18px; width: 100%;
+  border-top: 1px solid rgba($stone, .18);
+}
+
+// ── 整合性チェック：その場で直す ────────────────
+.issueMore {
+  font-size: 10px; color: $gold-dark; font-family: $font-serif-jp; white-space: nowrap;
+}
+
+.claimEdit {
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px dashed rgba($stone, .35);
+}
+
+.claimMsg {
+  margin: 8px 0 0; font-size: 11px; line-height: 1.7;
+  color: $gold-dark; font-family: $font-serif-jp;
+}
+
+// 直した出どころ
+.claimFixed {
+  background: rgba($green-status, .1);
+  border: 1px solid rgba($green-status, .4);
+}
+
+.fixedBadge {
+  margin-left: 8px; padding: 2px 8px; border-radius: $radius-full;
+  background: rgba($green-status, .22); color: #2f7d4f;
+  font-size: 10px; font-family: $font-serif-jp;
+}
+
+// ── 整合性チェック：どれを正とするか決めて、まとめてそろえる ──
+.resolver {
+  margin: 12px 0 16px; padding: 14px 16px;
+  border-radius: $radius-md;
+  background: rgba($cream-dark, .5); border: 1px solid rgba($stone, .25);
+}
+
+.pickList {
+  display: flex; flex-direction: column; gap: 8px; margin: 2px 0 14px;
+}
+
+// 候補1つぶん。押せると分かるよう、枠のある箱にします
+.pickItem {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; cursor: pointer;
+  border: 2px solid rgba($stone, .3); border-radius: $radius-md; background: $white;
+  transition: border-color .2s ease, background .2s ease;
+
+  &:hover { border-color: rgba($gold, .6); }
+  > input { flex-shrink: 0; width: 15px; height: 15px; accent-color: $gold-dark; cursor: pointer; }
+  > .input { flex: 1 1 200px; min-width: 0; }
+}
+
+.pickOn { border-color: $gold-dark; background: rgba($gold, .1); }
+
+.pickValue {
+  font-size: 12px; font-weight: 600; color: $charcoal; font-family: $font-serif-jp;
+}
+
+// その値がどこに書いてあるか
+.pickFrom {
+  flex: 1 1 auto; min-width: 0;
+  font-size: 10px; color: $stone; font-family: $font-serif-jp;
+}
+
+// ── 保存前の確認（前と後） ─────────────────────
+.planBox {
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px dashed rgba($stone, .4);
+}
+
+.planItem { margin-bottom: 12px; }
+
+.planHow {
+  margin-left: 8px; padding: 2px 8px; border-radius: $radius-full;
+  background: rgba($navy, .1); color: $navy;
+  font-size: 10px; font-family: $font-serif-jp;
+}
+
+.diffRow {
+  display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px;
+}
+
+.diffBefore, .diffAfter {
+  flex: 1 1 260px; min-width: 0;
+  padding: 9px 12px; border-radius: $radius-md;
+}
+.diffBefore { background: rgba($red-error, .05); border: 1px solid rgba($red-error, .25); }
+.diffAfter  { background: rgba($green-status, .1); border: 1px solid rgba($green-status, .4); }
+
+.diffLabel {
+  margin: 0 0 4px; font-size: 10px; font-family: $font-serif-jp; color: $stone;
+}
+
+.diffText {
+  margin: 0; font-size: 11px; line-height: 1.8; white-space: pre-wrap;
+  color: $charcoal; font-family: $font-serif-jp;
+  max-height: 180px; overflow-y: auto;
+}
+
+// ── 物件情報：見出しの操作 ──────────────────────
+// 見出しは、チャットに渡る順番と区切りそのものです。
+// 名前を変える・並べ替える・消すを、本文の上から行えるようにしています。
+.headTools {
+  margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+
+.renameRow {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  > .input { flex: 1 1 auto; min-width: 0; }
+  // 親が幅を詰めてくるので、ボタンは縮ませず1行に保ちます
+  > button { flex: 0 0 auto; white-space: nowrap; }
+}
+
+// 消すのは取り返しがつかないので、ほかと見分けが付くようにしています
+.linkDanger {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-size: 11px; color: $red-error; font-family: $font-serif-jp;
+  text-decoration: underline; text-underline-offset: 2px;
+  &:hover { opacity: .75; }
+  &:disabled { opacity: .35; cursor: not-allowed; text-decoration: none; }
+  @include focus-ring;
+}
+
+// ── 物件情報：見出しのジャンル ──────────────────
+// 色は見出し名のハッシュで決めていたため、意味がありませんでした。
+// いまは中身の種類（間取り、設備仕様など）を表します。
+.genreLegend {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 8px;
+}
+
+.genreChip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: $radius-full;
+  font-size: 10px; font-family: $font-serif-jp;
+}
+
+.genreCount {
+  font-family: $font-mono; opacity: .7;
+}
+
+.genreGroup {
+  margin-bottom: 12px;
+  &:last-child { margin-bottom: 0; }
+}
+
+.genreHead {
+  display: flex; align-items: center; gap: 6px;
+  margin: 0 0 4px; padding-bottom: 4px;
+  border-bottom: 1px solid rgba($stone, .2);
+  font-size: 10px; font-weight: 600; color: $charcoal; font-family: $font-serif-jp;
+}
+
+.genreDot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+
+.genreMeta {
+  margin-left: auto; font-size: 10px; color: $stone-light; font-family: $font-mono;
+}
+
+.genreHeadRow {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: 16px 0 2px;
+}
