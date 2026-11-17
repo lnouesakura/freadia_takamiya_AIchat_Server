@@ -789,20 +789,12 @@
   padding: 14px 0; line-height: 1.8;
 }
 
-.routeWarn {
-  font-size: 12px; color: $charcoal-light; font-family: $font-serif-jp;
-  background: rgba($gold, .08); border-left: 3px solid $gold;
-  padding: 10px 14px; border-radius: 0 $radius-md $radius-md 0;
-  margin-bottom: 12px; line-height: 1.8;
-}
 
 .routeGrid {
   display: flex; justify-content: space-between; align-items: stretch;
   flex-wrap: wrap; gap: 20px;
   align-items: flex-start;
   > .card { width: 48%; }
-  // 一番中身の多い「次に聞かれること」は横いっぱいに置き、2列に流します
-  > .cardWide { width: 100%; }
   @media (max-width: 900px) { > .card { width: 100%; } }
 }
 
@@ -812,62 +804,6 @@
   padding-top: 12px; border-top: 1px solid rgba($stone, .18);
 }
 
-/* よくある道筋 */
-.pathList { list-style: none; margin: 0; padding: 0; }
-.pathRow {
-  display: flex; align-items: baseline; gap: 12px;
-  padding: 10px 0;
-  & + & { border-top: 1px solid rgba($stone, .15); }
-}
-.pathCount {
-  flex: 0 0 auto; min-width: 40px;
-  font-size: 13px; font-weight: 600; color: $gold; font-family: $font-serif-jp;
-}
-.pathSteps { display: flex; flex-wrap: wrap; align-items: baseline; }
-.pathStep {
-  font-size: 13px; color: $charcoal; font-family: $font-serif-jp; white-space: nowrap;
-}
-.pathArrow { color: $stone; margin: 0 8px; font-size: 11px; }
-
-/* 次に聞かれること */
-.nextList { display: flex; flex-direction: column; gap: 16px; }
-.nextBlock {
-  & + & { border-top: 1px solid rgba($stone, .15); padding-top: 14px; }
-}
-// 横いっぱいのときは2列に。段の途中で切れないようにします
-.cardWide .nextList {
-  display: block;
-  @media (min-width: 901px) {
-    column-count: 2; column-gap: 40px;
-  }
-}
-.cardWide .nextBlock {
-  break-inside: avoid; page-break-inside: avoid;
-  margin-bottom: 16px;
-  & + & { border-top: none; padding-top: 0; }
-}
-.nextFrom {
-  font-size: 13px; font-weight: 600; color: $charcoal;
-  font-family: $font-serif-jp; margin-bottom: 8px;
-}
-.nextTotal { font-size: 11px; font-weight: 400; color: $stone; margin-left: 8px; }
-.nextRow { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-.nextLabel {
-  flex: 0 0 38%; font-size: 12px; color: $charcoal-light; font-family: $font-serif-jp;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.nextBarTrack {
-  flex: 1 1 auto; height: 6px; border-radius: 3px;
-  background: rgba($stone, .15); overflow: hidden;
-}
-.nextBarFill { display: block; height: 100%; background: $gold; border-radius: 3px; }
-.nextVal {
-  flex: 0 0 auto; min-width: 36px; text-align: right;
-  font-size: 11px; color: $stone; font-family: $font-serif-jp;
-}
-.nextSame {
-  font-size: 11px; color: $stone; font-family: $font-serif-jp; margin-top: 6px;
-}
 
 /* 入口と出口 */
 .endsRow { display: flex; gap: 24px; }
@@ -885,4 +821,98 @@
 }
 .endsVal {
   flex: 0 0 auto; font-size: 11px; color: $stone; font-family: $font-serif-jp;
+}
+
+// 顧客ヒアリング分析が失敗したときの表示。
+// 以前は何も出ず、押す前の状態に戻るだけだったので理由が分かりませんでした
+.analyzeError {
+  background: rgba(#C0392B, .06);
+  border-left: 3px solid #C0392B;
+  border-radius: 0 $radius-md $radius-md 0;
+  padding: 14px 18px;
+}
+.analyzeErrorTitle {
+  font-size: 13px; font-weight: 600; color: #C0392B;
+  font-family: $font-serif-jp; margin-bottom: 6px;
+}
+.analyzeErrorBody {
+  font-size: 12px; color: $charcoal-light; font-family: $font-serif-jp; line-height: 1.9;
+}
+
+/* ── 週次レポート：離脱質問 ───────────────────── */
+
+.dropCount {
+  margin-left: 10px; padding: 2px 9px; border-radius: $radius-full;
+  background: rgba(#C0392B, .12); color: #C0392B;
+  font-size: 11px; font-weight: 400; font-family: $font-serif-jp;
+}
+.dropList { list-style: none; margin: 0; padding: 0; }
+.dropRow {
+  display: flex; align-items: baseline; gap: 12px; padding: 10px 0;
+  & + & { border-top: 1px solid rgba($stone, .15); }
+}
+.dropNum {
+  flex: 0 0 auto; min-width: 38px;
+  font-size: 13px; font-weight: 600; color: $gold; font-family: $font-serif-jp;
+}
+.dropBody { flex: 1 1 auto; min-width: 0; }
+.dropQ {
+  display: block; font-size: 13px; color: $charcoal;
+  font-family: $font-serif-jp; line-height: 1.6;
+}
+.dropMeta {
+  display: block; margin-top: 4px;
+  font-size: 11px; color: $stone; font-family: $font-serif-jp;
+}
+.dropStatus {
+  margin-left: 8px; padding: 1px 8px; border-radius: $radius-full;
+  background: rgba($stone, .15); color: $charcoal-light; font-size: 10px;
+}
+
+/* ── カテゴリの内訳 ───────────────────────────── */
+
+.catBtnRow {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid rgba($stone, .18);
+}
+.catBtn {
+  flex: 0 0 auto; white-space: nowrap;
+  padding: 6px 14px; border-radius: $radius-full; cursor: pointer;
+  background: $white; border: 1px solid rgba($stone, .35); color: $charcoal-light;
+  font-size: 11px; font-family: $font-serif-jp; transition: all .2s;
+  &:hover { border-color: $gold; color: $charcoal; }
+  @include focus-ring;
+}
+.catBtnOn {
+  background: $charcoal; border-color: $charcoal; color: $white;
+  &:hover { background: $charcoal; border-color: $charcoal; color: $white; }
+}
+
+.catDetail { margin-top: 14px; }
+.catDetailHead {
+  font-size: 12px; font-weight: 600; color: $charcoal;
+  font-family: $font-serif-jp; margin-bottom: 10px;
+}
+.catDetailSub { margin-left: 10px; font-size: 11px; font-weight: 400; color: $stone; }
+.catList {
+  list-style: none; margin: 0; padding: 0;
+  max-height: 320px; overflow-y: auto;
+}
+.catItem {
+  display: flex; align-items: baseline; gap: 10px; padding: 7px 0;
+  & + & { border-top: 1px solid rgba($stone, .12); }
+}
+.catItemCount {
+  flex: 0 0 auto; min-width: 36px;
+  font-size: 11px; color: $gold; font-family: $font-serif-jp;
+}
+.catItemQ {
+  flex: 1 1 auto; min-width: 0;
+  font-size: 12px; color: $charcoal-light; font-family: $font-serif-jp; line-height: 1.6;
+}
+.catItemNg {
+  flex: 0 0 auto; padding: 1px 8px; border-radius: $radius-full;
+  background: rgba(#C0392B, .1); color: #C0392B;
+  font-size: 10px; font-family: $font-serif-jp; white-space: nowrap;
 }

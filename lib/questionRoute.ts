@@ -1,85 +1,94 @@
 // lib/questionRoute.ts
-// 「どの話題のあと、次に何を聞かれるか」を数えます。
+// 週ごとに「会話の入口と出口」と「離脱質問」を数えます。
 //
-// 会話ごとに質問を時間順に並べ、話題（カテゴリ）のつながりを数えるだけで、
-// AIは使いません。数えた結果なので、毎回同じ答えになります。
+// 会話ごとに質問を時間順に並べるだけで、AIは使いません。
+// 同じ期間なら何度見ても同じ結果になります。
 //
-// 出すもの
-//   最初に聞かれること … 会話の入口
-//   次に聞かれること   … ある話題のあとに続いた話題
-//   よくある道筋       … 実際に多かった3つ分のつながり
-//   最後に聞かれること … そこで会話が終わった話題
+// ■ 出すもの（週ごと）
+//   最初の質問 … その週、会話の1問目に何が多かったか
+//   最後の質問 … その週、どの話題で会話が終わったか
+//   離脱質問   … 答えられないまま会話が終わった、実際の質問文
 //
-// ■ 数が少ないうちは「傾向」と言いません
-//   会話が数件しかないときに道筋を描くと、たまたま1人がたどった順番が
-//   さも全体の傾向のように見えてしまいます。
-//   そのため enough を false にして、画面側で断りを出せるようにしています。
+// ■ 以前あった「よくある道筋」「次に聞かれること」は外しました
+//   3問続けて同じ並びが2件以上、ある話題が3回以上、といった条件を
+//   満たすまで何も出ず、画面がほとんど空のままだったためです。
+//   最初と最後なら、1会話からでも必ず数えられます。
 
-/** これだけの会話がないと、傾向とは呼びません */
-export const ENOUGH_SESSIONS = 20;
-/** 「次に聞かれること」を出すのに必要な、その話題の最低件数 */
-export const MIN_FROM = 3;
-/** 道筋として見るつながりの長さ */
-export const PATH_STEPS = 3;
+/** 何週分を見るか */
+export const WEEKS = 8;
 
 /** カテゴリが空のときの呼び名 */
 export const UNKNOWN = '未分類';
 
+/**
+ * 「答えられた」とみなす状態。
+ * これ以外で終わった会話は、聞きたいことが済まずに離れた可能性があります。
+ * （app/api/chat/route.ts が status を入れています）
+ */
+export const ANSWERED = 'answered';
+
+/** 状態の日本語。画面にそのまま出します */
+export const STATUS_LABEL: Record<string, string> = {
+  answered: '回答済み',
+  info: '登録情報になし',
+  consult: '担当者へ相談',
+  guide: '担当者がご案内',
+  unrelated: '物件と無関係',
+};
+
 export type LogRow = {
   id: string;
   sessionId: string;
+  question: string;
   category: string | null;
+  answerable: boolean;
+  status: string;
   createdAt: Date | string;
 };
 
 export type Count = {
   label: string;
   count: number;
-  /** 全体に対する割合（0〜100、小数第1位まで） */
+  /** その週に対する割合（0〜100、小数第1位まで） */
   share: number;
 };
 
-export type NextStep = {
-  from: string;
-  /** その話題のあとに質問が続いた回数 */
-  total: number;
-  to: Count[];
-  /** 同じ話題を続けて聞かれた回数（to には含めません） */
-  same: number;
-};
-
-export type RoutePath = {
-  steps: string[];
+export type DropOff = {
+  question: string;
+  category: string;
+  status: string;
   count: number;
-  share: number;
+};
+
+export type WeekReport = {
+  /** 週の始まり（月曜）。YYYY-MM-DD */
+  start: string;
+  /** 週の終わり（日曜）。YYYY-MM-DD */
+  end: string;
+  /** 「11/10〜11/16」のような表示用 */
+  label: string;
+  sessions: number;
+  questions: number;
+  avgPerSession: number;
+  /** 1問だけで終わった会話 */
+  singleQuestion: number;
+  first: Count[];
+  last: Count[];
+  /** 答えられないまま終わった会話の数 */
+  dropSessions: number;
+  /** その実際の質問文 */
+  dropOffs: DropOff[];
 };
 
 export type RouteResult = {
-  /** 対象にした会話の数 */
-  sessions: number;
-  /** 質問の総数 */
-  questions: number;
-  /** 1会話あたりの質問数 */
-  avgPerSession: number;
-  /** 傾向と呼べるだけの数があるか */
-  enough: boolean;
-  first: Count[];
-  last: Count[];
-  next: NextStep[];
-  paths: RoutePath[];
-  /** 1問だけで終わった会話の数 */
-  singleQuestion: number;
+  weeks: WeekReport[];
+  /** 全期間の合計（見出しに出します） */
+  totalSessions: number;
+  totalQuestions: number;
 };
 
 const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 1000) / 10 : 0);
 
-/**
- * 数えて多い順に並べます。
- *
- * Map をそのまま展開しないのは、このプロジェクトの TypeScript の設定
- * （target 未指定＝ES5相当）では Map の中身を直接取り出せないためです。
- * 素の object で数えています。
- */
 const tally = (names: string[]): Count[] => {
   const m: Record<string, number> = Object.create(null);
   const order: string[] = [];
@@ -93,89 +102,104 @@ const tally = (names: string[]): Count[] => {
 };
 
 const time = (v: Date | string) => new Date(v).getTime();
+const cat = (r: LogRow) => (r.category || '').trim() || UNKNOWN;
+
+/** その日が属する週の月曜日（0時）を返します */
+export function weekStart(v: Date | string): Date {
+  const d = new Date(v);
+  d.setHours(0, 0, 0, 0);
+  // getDay() は日曜が0。月曜始まりにそろえます
+  const back = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - back);
+  return d;
+}
+
+const ymd = (d: Date) => {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+const md = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
 
 /**
- * 会話ごとに、質問の話題を時間順に並べます。
+ * 会話ごとに質問を時間順に並べます。
  *
- * 同じ時刻の行があり得るので、時刻が同じときは id で並べます。
+ * 時刻が同じ行があり得るので、そのときは id で並べます。
  * （まとめて書き込まれた行は時刻が揃うことがあり、
- *   そのままだと並び順が実行のたびに変わってしまいます）
+ *   そのままだと見るたびに順番が変わってしまいます）
  */
-export function toSequences(rows: LogRow[]): string[][] {
-  const bySession: Record<string, LogRow[]> = Object.create(null);
+export function toSessions(rows: LogRow[]): LogRow[][] {
+  const by: Record<string, LogRow[]> = Object.create(null);
   const ids: string[] = [];
   rows.forEach((r) => {
-    if (!bySession[r.sessionId]) { bySession[r.sessionId] = []; ids.push(r.sessionId); }
-    bySession[r.sessionId].push(r);
+    if (!by[r.sessionId]) { by[r.sessionId] = []; ids.push(r.sessionId); }
+    by[r.sessionId].push(r);
   });
   return ids.map((sid) => {
-    const list = bySession[sid];
+    const list = by[sid];
     list.sort((a, b) => (time(a.createdAt) - time(b.createdAt)) || a.id.localeCompare(b.id));
-    return list.map((r) => (r.category || '').trim() || UNKNOWN);
+    return list;
   });
 }
 
-/** 続けて同じ話題が並んでいるところを1つにまとめます（道筋を見るため） */
-const collapse = (seq: string[]): string[] => seq.filter((c, i) => i === 0 || c !== seq[i - 1]);
+export function analyzeWeeks(rows: LogRow[], weeks = WEEKS): RouteResult {
+  const sessions = toSessions(rows).filter((s) => s.length > 0);
 
-export function analyzeRoutes(rows: LogRow[]): RouteResult {
-  const seqs = toSequences(rows).filter((s) => s.length > 0);
-
-  const first = tally(seqs.map((s) => s[0]));
-  const last = tally(seqs.map((s) => s[s.length - 1]));
-
-  // ある話題のあと、次に何が来たか
-  const fromTotal: Record<string, number> = Object.create(null);
-  const sameCount: Record<string, number> = Object.create(null);
-  const pairs: Record<string, string[]> = Object.create(null);
-  const froms: string[] = [];
-  seqs.forEach((s) => {
-    for (let i = 0; i + 1 < s.length; i++) {
-      const a = s[i];
-      const b = s[i + 1];
-      if (fromTotal[a] === undefined) {
-        fromTotal[a] = 0; sameCount[a] = 0; pairs[a] = []; froms.push(a);
-      }
-      fromTotal[a] += 1;
-      if (a === b) sameCount[a] += 1;
-      else pairs[a].push(b);
-    }
+  // 会話は、その1問目の週に入れます（週をまたいだ会話が2つに割れないように）
+  const byWeek: Record<string, LogRow[][]> = Object.create(null);
+  sessions.forEach((s) => {
+    const k = ymd(weekStart(s[0].createdAt));
+    if (!byWeek[k]) byWeek[k] = [];
+    byWeek[k].push(s);
   });
 
-  const next: NextStep[] = froms
-    .filter((from) => fromTotal[from] >= MIN_FROM)
-    .map((from) => ({
-      from,
-      total: fromTotal[from],
-      same: sameCount[from],
-      to: tally(pairs[from]).slice(0, 4),
-    }))
-    .sort((a, b) => b.total - a.total || a.from.localeCompare(b.from));
+  const keys = Object.keys(byWeek).sort().reverse().slice(0, weeks);
 
-  // よくある道筋。続けて同じ話題が並ぶところはまとめてから数えます
-  const chains: string[] = [];
-  for (const s of seqs) {
-    const c = collapse(s);
-    for (let i = 0; i + PATH_STEPS <= c.length; i++) {
-      chains.push(c.slice(i, i + PATH_STEPS).join('\u0000'));
-    }
-  }
-  const paths: RoutePath[] = tally(chains)
-    .filter((p) => p.count >= 2)
-    .slice(0, 6)
-    .map((p) => ({ steps: p.label.split('\u0000'), count: p.count, share: p.share }));
+  const out: WeekReport[] = keys.map((k) => {
+    const list = byWeek[k];
+    const start = new Date(`${k}T00:00:00`);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
 
-  const questions = seqs.reduce((n, s) => n + s.length, 0);
+    const questions = list.reduce((n, s) => n + s.length, 0);
+
+    // 離脱質問：答えられないまま終わった会話の、最後の質問
+    const ended = list
+      .map((s) => s[s.length - 1])
+      .filter((r) => r.status !== ANSWERED || r.answerable === false);
+
+    const bucket: Record<string, DropOff> = Object.create(null);
+    const order: string[] = [];
+    ended.forEach((r) => {
+      const key = `${r.question}\u0000${r.status}`;
+      if (!bucket[key]) {
+        bucket[key] = { question: r.question, category: cat(r), status: r.status, count: 0 };
+        order.push(key);
+      }
+      bucket[key].count += 1;
+    });
+    const dropOffs = order
+      .map((key) => bucket[key])
+      .sort((a, b) => b.count - a.count || a.question.localeCompare(b.question))
+      .slice(0, 12);
+
+    return {
+      start: k,
+      end: ymd(end),
+      label: `${md(start)}〜${md(end)}`,
+      sessions: list.length,
+      questions,
+      avgPerSession: list.length ? Math.round((questions / list.length) * 10) / 10 : 0,
+      singleQuestion: list.filter((s) => s.length === 1).length,
+      first: tally(list.map((s) => cat(s[0]))).slice(0, 6),
+      last: tally(list.map((s) => cat(s[s.length - 1]))).slice(0, 6),
+      dropSessions: ended.length,
+      dropOffs,
+    };
+  });
 
   return {
-    sessions: seqs.length,
-    questions,
-    avgPerSession: seqs.length ? Math.round((questions / seqs.length) * 10) / 10 : 0,
-    enough: seqs.length >= ENOUGH_SESSIONS,
-    first: first.slice(0, 6),
-    last: last.slice(0, 6),
-    next: next.slice(0, 8),
-    paths,
-    singleQuestion: seqs.filter((s) => s.length === 1).length,
+    weeks: out,
+    totalSessions: sessions.length,
+    totalQuestions: sessions.reduce((n, s) => n + s.length, 0),
   };
 }

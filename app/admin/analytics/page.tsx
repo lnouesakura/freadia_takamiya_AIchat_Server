@@ -10,21 +10,40 @@ import styles from './page.module.scss';
 
 const COLORS = ['#B8945F', '#D4AF7A', '#8B6E3F', '#1A2332', '#4A6080', '#6B8CAE', '#C4A882', '#E8D5B0'];
 
-/** 質問の流れ（/api/admin/question-route が返すもの） */
+/** 週次レポート（/api/admin/question-route が返すもの） */
 type RouteCount = { label: string; count: number; share: number };
+type DropOff = { question: string; category: string; status: string; count: number };
+type WeekReport = {
+  start: string; end: string; label: string;
+  sessions: number; questions: number; avgPerSession: number; singleQuestion: number;
+  first: RouteCount[]; last: RouteCount[];
+  dropSessions: number; dropOffs: DropOff[];
+};
 type RouteResult = {
-  sessions: number;
-  questions: number;
-  avgPerSession: number;
-  enough: boolean;
-  singleQuestion: number;
-  first: RouteCount[];
-  last: RouteCount[];
-  next: { from: string; total: number; same: number; to: RouteCount[] }[];
-  paths: { steps: string[]; count: number; share: number }[];
-  days: number;
+  weeks: WeekReport[];
+  totalSessions: number;
+  totalQuestions: number;
   capped: boolean;
 };
+
+/** カテゴリの内訳（?category= を付けたときに返るもの） */
+type CategoryDetail = {
+  category: string;
+  total: number;
+  unique: number;
+  items: { question: string; count: number; status: string; answerable: boolean }[];
+  more: number;
+};
+
+/** 回答の状態の呼び名。lib/analyzeQuestion.ts の分類に合わせています */
+const STATUS_LABEL: Record<string, string> = {
+  answered: '回答済み',
+  info: '登録情報になし',
+  consult: '担当者へ相談',
+  guide: '担当者がご案内',
+  unrelated: '物件と無関係',
+};
+
 const HOUR_DIST = [
   { hour: '9時', count: 4 }, { hour: '10時', count: 8 }, { hour: '11時', count: 12 },
   { hour: '12時', count: 7 }, { hour: '13時', count: 5 }, { hour: '14時', count: 14 },
@@ -49,19 +68,37 @@ export default function AnalyticsPage() {
   // トレンド期間
   const [chartDays, setChartDays] = useState(14);
 
-  // 質問の流れ（どの話題のあと、次に何を聞かれるか）
+  // 週次レポート（最初の質問・最後の質問・離脱質問）
   const [route, setRoute] = useState<RouteResult | null>(null);
-  const [routeDays, setRouteDays] = useState(30);
+  const [weekIdx, setWeekIdx] = useState(0);
   const [routeLoading, setRouteLoading] = useState(true);
 
   useEffect(() => {
     setRouteLoading(true);
-    fetch(`/api/admin/question-route?days=${routeDays}`)
+    fetch('/api/admin/question-route')
       .then((r) => r.json())
       .then((d) => setRoute(d && !d.error ? d : null))
       .catch(() => setRoute(null))
       .finally(() => setRouteLoading(false));
-  }, [routeDays]);
+  }, []);
+
+  // カテゴリの内訳。「その他」などを押すと、実際の質問文を出します
+  const [detail, setDetail] = useState<CategoryDetail | null>(null);
+  const [detailOf, setDetailOf] = useState('');
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const openDetail = async (category: string) => {
+    if (detailOf === category) { setDetailOf(''); setDetail(null); return; }
+    setDetailOf(category);
+    setDetail(null);
+    setDetailLoading(true);
+    try {
+      const r = await fetch(`/api/admin/question-route?category=${encodeURIComponent(category)}`);
+      const d = await r.json();
+      setDetail(d && !d.error ? d : null);
+    } catch { setDetail(null); }
+    finally { setDetailLoading(false); }
+  };
 
   // タイムラインメモ
   const [memos, setMemos] = useState<any[]>([]);
@@ -92,6 +129,8 @@ export default function AnalyticsPage() {
     fetchMemos();
   };
   const [analyzing, setAnalyzing] = useState(false);
+  /** 分析に失敗したときの理由。空なら問題なし */
+  const [analyzeError, setAnalyzeError] = useState('');
   const [analyzed, setAnalyzed] = useState(false);
 
   const fetchStats = useCallback((showLoading = true) => {
@@ -106,12 +145,25 @@ export default function AnalyticsPage() {
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
+    setAnalyzeError('');
     try {
       const r = await fetch('/api/admin/customer-analysis', { method: 'POST' });
-      const d = await r.json();
-      if (r.ok) { setCustomerAnalysis(d); setAnalyzed(true); }
-    } catch { }
-    finally { setAnalyzing(false); }
+      const d = await r.json().catch(() => null);
+      if (r.ok && d) {
+        setCustomerAnalysis(d);
+        setAnalyzed(true);
+      } else {
+        // 以前はここで何もしなかったため、押す前の表示に戻るだけでした
+        setAnalyzeError(d?.error || `分析できませんでした（${r.status}）`);
+      }
+    } catch (e) {
+      setAnalyzeError(
+        '分析の呼び出しに失敗しました。通信が切れたか、時間がかかりすぎた可能性があります。',
+      );
+      console.error('[customer-analysis]', e);
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   if (loading) return <div className={styles.shell}><p className={styles.stateMsg}>読み込み中...</p></div>;
@@ -226,147 +278,123 @@ export default function AnalyticsPage() {
           </div>
         )}
       </div>
-      {/* ── 質問の流れ ── */}
+      {/* ── 週次レポート ── */}
       <div className={styles.routeSection}>
         <div className={styles.routeHead}>
           <div>
-            <p className={styles.cardTitle}>質問の流れ</p>
+            <p className={styles.cardTitle}>週次レポート</p>
             <p className={styles.routeLead}>
-              何を聞いたあと、次に何を聞かれるか。会話ごとに質問を順に並べて数えています。
+              その週、会話が何から始まり何で終わったか。
+              答えられないまま終わった質問も並べます。
             </p>
           </div>
-          <div className={styles.routeDays}>
-            {[30, 90, 0].map((d) => (
-              <button key={d} type="button"
-                className={`${styles.routeDayBtn} ${routeDays === d ? styles.routeDayBtnOn : ''}`}
-                onClick={() => setRouteDays(d)}>
-                {d === 0 ? '全期間' : `${d}日`}
-              </button>
-            ))}
-          </div>
+          {route && route.weeks.length > 0 && (
+            <div className={styles.routeDays}>
+              {route.weeks.slice(0, 6).map((w, i) => (
+                <button key={w.start} type="button"
+                  className={`${styles.routeDayBtn} ${weekIdx === i ? styles.routeDayBtnOn : ''}`}
+                  onClick={() => setWeekIdx(i)}>
+                  {i === 0 ? '今週' : i === 1 ? '先週' : w.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {routeLoading && <p className={styles.routeMsg}>集計中...</p>}
 
-        {!routeLoading && (!route || route.sessions === 0) && (
+        {!routeLoading && (!route || route.weeks.length === 0) && (
           <p className={styles.routeMsg}>
-            この期間に記録された質問がありません。チャットが使われると自動でたまっていきます。
+            まだ記録された質問がありません。チャットが使われると自動でたまっていきます。
           </p>
         )}
 
-        {!routeLoading && route && route.sessions > 0 && (
-          <>
-            <div className={styles.routeStats}>
-              <span><strong>{route.sessions}</strong>件の会話</span>
-              <span><strong>{route.questions}</strong>問の質問</span>
-              <span>1会話あたり <strong>{route.avgPerSession}</strong>問</span>
-              <span>1問で終わった会話 <strong>{route.singleQuestion}</strong>件</span>
-            </div>
-
-            {!route.enough && (
-              <p className={styles.routeWarn}>
-                まだ{route.sessions}件の会話しかありません。
-                ここに出ているのは「実際にあった並び」であって、傾向とは言えません。
-                20件ほどたまってから読んでください。
-              </p>
-            )}
-            {route.capped && (
-              <p className={styles.routeWarn}>
-                件数が多いため、新しい5000問までを対象にしています。
-              </p>
-            )}
-
-            <div className={styles.routeGrid}>
-              <div className={styles.card}>
-                <p className={styles.cardTitle}>よくある道筋</p>
-                <p className={styles.cardNote}>3つ続けて聞かれた並びのうち、2件以上あったもの</p>
-                {route.paths.length === 0 ? (
-                  <p className={styles.routeMsg}>
-                    同じ並びが2件以上そろっていません。会話がたまると出てきます。
-                  </p>
-                ) : (
-                  <ol className={styles.pathList}>
-                    {route.paths.map((p) => (
-                      <li key={p.steps.join('>')} className={styles.pathRow}>
-                        <span className={styles.pathCount}>{p.count}件</span>
-                        <span className={styles.pathSteps}>
-                          {p.steps.map((s, i) => (
-                            <span key={`${s}-${i}`} className={styles.pathStep}>
-                              {i > 0 && <span className={styles.pathArrow}>→</span>}
-                              {s}
-                            </span>
-                          ))}
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
-                )}
+        {!routeLoading && route && route.weeks[weekIdx] && (() => {
+          const w = route.weeks[weekIdx];
+          return (
+            <>
+              <div className={styles.routeStats}>
+                <span>{w.label}</span>
+                <span><strong>{w.sessions}</strong>件の会話</span>
+                <span><strong>{w.questions}</strong>問の質問</span>
+                <span>1会話あたり <strong>{w.avgPerSession}</strong>問</span>
+                <span>1問で終了 <strong>{w.singleQuestion}</strong>件</span>
               </div>
 
-
-              <div className={styles.card}>
-                <p className={styles.cardTitle}>会話の入口と出口</p>
-                <p className={styles.cardNote}>最初に聞かれたことと、そこで終わったこと</p>
-                <div className={styles.endsRow}>
-                  {([['最初の質問', route.first], ['最後の質問', route.last]] as const).map(([t, list]) => (
-                    <div key={t} className={styles.endsCol}>
-                      <p className={styles.endsTitle}>{t}</p>
-                      {list.map((x, i) => (
-                        <div key={x.label} className={styles.endsItem}>
-                          <span className={styles.endsDot} style={{ background: COLORS[i % COLORS.length] }} />
-                          <span className={styles.endsLabel}>{x.label}</span>
-                          <span className={styles.endsVal}>{x.share}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-                <p className={styles.routeTip}>
-                  最後によく出る話題は、そこで知りたいことが済んだか、
-                  答えが足りずに離れたかのどちらかです。
-                  「情報登録」で該当の資料を足すと変化を見られます。
-                </p>
-              </div>
-
-              <div className={`${styles.card} ${styles.cardWide}`}>
-                <p className={styles.cardTitle}>次に聞かれること</p>
-                <p className={styles.cardNote}>その話題のあとに続いた質問。3回以上あった話題だけ</p>
-                {route.next.length === 0 ? (
-                  <p className={styles.routeMsg}>続けて質問された会話がまだ少ないため出せません。</p>
-                ) : (
-                  <div className={styles.nextList}>
-                    {route.next.map((s) => (
-                      <div key={s.from} className={styles.nextBlock}>
-                        <p className={styles.nextFrom}>
-                          {s.from}<span className={styles.nextTotal}>のあと {s.total}回</span>
-                        </p>
-                        {s.to.map((t) => (
-                          <div key={t.label} className={styles.nextRow}>
-                            <span className={styles.nextLabel}>→ {t.label}</span>
-                            <span className={styles.nextBarTrack}>
-                              <span className={styles.nextBarFill} style={{ width: `${t.share}%` }} />
-                            </span>
-                            <span className={styles.nextVal}>{t.count}回</span>
+              <div className={styles.routeGrid}>
+                <div className={styles.card}>
+                  <p className={styles.cardTitle}>第一質問 → 最終質問</p>
+                  <p className={styles.cardNote}>会話の1問目と、その会話が終わったときの話題</p>
+                  <div className={styles.endsRow}>
+                    {([['第一質問', w.first], ['最終質問', w.last]] as const).map(([title, list]) => (
+                      <div key={title} className={styles.endsCol}>
+                        <p className={styles.endsTitle}>{title}</p>
+                        {list.length === 0 && <p className={styles.routeMsg}>ありません</p>}
+                        {list.map((x, i) => (
+                          <div key={x.label} className={styles.endsItem}>
+                            <span className={styles.endsDot}
+                              style={{ background: COLORS[i % COLORS.length] }} />
+                            <span className={styles.endsLabel}>{x.label}</span>
+                            <span className={styles.endsVal}>{x.count}件</span>
                           </div>
                         ))}
-                        {s.same > 0 && (
-                          <p className={styles.nextSame}>
-                            同じ話題を続けて {s.same}回（もっと詳しく聞かれています）
-                          </p>
-                        )}
                       </div>
                     ))}
                   </div>
-                )}
+                  <p className={styles.routeTip}>
+                    第一質問は、お客様が最初に知りたいことです。
+                    最終質問によく出る話題は、そこで知りたいことが済んだか、
+                    答えが足りずに離れたかのどちらかです。
+                  </p>
+                </div>
+
+                <div className={styles.card}>
+                  <p className={styles.cardTitle}>
+                    離脱質問
+                    {w.dropSessions > 0 && (
+                      <span className={styles.dropCount}>{w.dropSessions}件</span>
+                    )}
+                  </p>
+                  <p className={styles.cardNote}>
+                    答えられないまま会話が終わった、そのときの質問
+                  </p>
+                  {w.dropOffs.length === 0 ? (
+                    <p className={styles.routeMsg}>
+                      この週は、答えられずに終わった会話はありませんでした。
+                    </p>
+                  ) : (
+                    <ol className={styles.dropList}>
+                      {w.dropOffs.map((d) => (
+                        <li key={`${d.question}-${d.status}`} className={styles.dropRow}>
+                          <span className={styles.dropNum}>{d.count}件</span>
+                          <span className={styles.dropBody}>
+                            <span className={styles.dropQ}>{d.question}</span>
+                            <span className={styles.dropMeta}>
+                              {d.category}
+                              <span className={styles.dropStatus}>
+                                {STATUS_LABEL[d.status] || d.status}
+                              </span>
+                            </span>
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                  <p className={styles.routeTip}>
+                    「登録情報になし」が続く質問は、資料を足せば答えられるようになります。
+                    「担当者へ相談」はAIが答えてはいけない区分なので、そのままで問題ありません。
+                  </p>
+                </div>
               </div>
-            </div>
-          </>
-        )}
+            </>
+          );
+        })()}
       </div>
 
       <div className={styles.bottomGrid}>
         <div className={styles.card}>
           <p className={styles.cardTitle}>カテゴリ別質問数</p>
+          <p className={styles.cardNote}>下のボタンを押すと、実際の質問文が見られます</p>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={categoryStats} layout="vertical" margin={{ top: 0, right: 8, left: 60, bottom: 0 }}>
               <XAxis type="number" tick={{ fontSize: 10, fill: '#8A8680' }} axisLine={false} tickLine={false} />
@@ -377,6 +405,61 @@ export default function AnalyticsPage() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+
+          {/* カテゴリの中身。「その他」が何なのか分かるようにします */}
+          <div className={styles.catBtnRow}>
+            {categoryStats.map((c) => (
+              <button key={c.category} type="button"
+                className={`${styles.catBtn} ${detailOf === c.category ? styles.catBtnOn : ''}`}
+                onClick={() => openDetail(c.category)}>
+                {c.category}
+              </button>
+            ))}
+          </div>
+
+          {detailOf && (
+            <div className={styles.catDetail}>
+              {detailLoading && <p className={styles.routeMsg}>読み込み中...</p>}
+              {!detailLoading && !detail && (
+                <p className={styles.routeMsg}>中身を取り出せませんでした。</p>
+              )}
+              {!detailLoading && detail && (
+                <>
+                  <p className={styles.catDetailHead}>
+                    「{detail.category}」の中身
+                    <span className={styles.catDetailSub}>
+                      {detail.total}件（{detail.unique}種類）
+                    </span>
+                  </p>
+                  {detail.items.length === 0 ? (
+                    <p className={styles.routeMsg}>質問がありません。</p>
+                  ) : (
+                    <ol className={styles.catList}>
+                      {detail.items.map((q) => (
+                        <li key={q.question} className={styles.catItem}>
+                          <span className={styles.catItemCount}>{q.count}件</span>
+                          <span className={styles.catItemQ}>{q.question}</span>
+                          {!q.answerable && (
+                            <span className={styles.catItemNg}>
+                              {STATUS_LABEL[q.status] || q.status}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                  {detail.more > 0 && (
+                    <p className={styles.routeMsg}>ほかに {detail.more} 種類あります。</p>
+                  )}
+                  <p className={styles.routeTip}>
+                    「その他」は、決められた言葉がどれも当てはまらなかった質問です。
+                    よく聞かれているものがあれば、資料や想定問答に足しておくと
+                    次からきちんと答えられます。
+                  </p>
+                </>
+              )}
+            </div>
+          )}
         </div>
         <div className={styles.card}>
           <p className={styles.cardTitle}>時間帯別利用状況</p>
@@ -460,7 +543,14 @@ export default function AnalyticsPage() {
           </button>
         </div>
 
-        {!customerAnalysis && !analyzing && (
+        {analyzeError && !analyzing && (
+          <div className={styles.analyzeError}>
+            <p className={styles.analyzeErrorTitle}>分析できませんでした</p>
+            <p className={styles.analyzeErrorBody}>{analyzeError}</p>
+          </div>
+        )}
+
+        {!customerAnalysis && !analyzing && !analyzeError && (
           <div className={styles.analyzeEmpty}>
             <p>「分析を開始」ボタンを押すと、全会話ログから顧客傾向を自動抽出します</p>
           </div>
