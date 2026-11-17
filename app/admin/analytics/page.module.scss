@@ -747,3 +747,142 @@
   min-width: 42px;
   text-align: right;
 }
+/* ── 質問の流れ ───────────────────────────────── */
+
+.routeSection {
+  margin-bottom: 20px;
+}
+
+.routeHead {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 12px;
+}
+
+.routeLead {
+  font-size: 12px; color: $stone; font-family: $font-serif-jp; margin-top: 4px;
+}
+
+.routeDays { display: flex; gap: 6px; flex: 0 0 auto; }
+
+.routeDayBtn {
+  flex: 0 0 auto; white-space: nowrap;
+  padding: 7px 16px; border-radius: $radius-md; cursor: pointer;
+  background: $white; border: 1px solid rgba($stone, .35); color: $charcoal-light;
+  font-size: 12px; font-family: $font-serif-jp; transition: all .2s;
+  &:hover { border-color: $gold; color: $charcoal; }
+  @include focus-ring;
+}
+.routeDayBtnOn {
+  background: $gold; border-color: $gold; color: $white;
+  &:hover { border-color: $gold; color: $white; }
+}
+
+.routeStats {
+  display: flex; flex-wrap: wrap; gap: 20px;
+  font-size: 12px; color: $charcoal-light; font-family: $font-serif-jp;
+  margin-bottom: 12px;
+  strong { font-size: 16px; color: $charcoal; margin: 0 2px; }
+}
+
+.routeMsg {
+  font-size: 12px; color: $stone; font-family: $font-serif-jp;
+  padding: 14px 0; line-height: 1.8;
+}
+
+.routeWarn {
+  font-size: 12px; color: $charcoal-light; font-family: $font-serif-jp;
+  background: rgba($gold, .08); border-left: 3px solid $gold;
+  padding: 10px 14px; border-radius: 0 $radius-md $radius-md 0;
+  margin-bottom: 12px; line-height: 1.8;
+}
+
+.routeGrid {
+  display: flex; justify-content: space-between; align-items: stretch;
+  flex-wrap: wrap; gap: 20px;
+  align-items: flex-start;
+  > .card { width: 48%; }
+  // 一番中身の多い「次に聞かれること」は横いっぱいに置き、2列に流します
+  > .cardWide { width: 100%; }
+  @media (max-width: 900px) { > .card { width: 100%; } }
+}
+
+.routeTip {
+  font-size: 11px; color: $stone; font-family: $font-serif-jp;
+  margin-top: 14px; line-height: 1.8;
+  padding-top: 12px; border-top: 1px solid rgba($stone, .18);
+}
+
+/* よくある道筋 */
+.pathList { list-style: none; margin: 0; padding: 0; }
+.pathRow {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 10px 0;
+  & + & { border-top: 1px solid rgba($stone, .15); }
+}
+.pathCount {
+  flex: 0 0 auto; min-width: 40px;
+  font-size: 13px; font-weight: 600; color: $gold; font-family: $font-serif-jp;
+}
+.pathSteps { display: flex; flex-wrap: wrap; align-items: baseline; }
+.pathStep {
+  font-size: 13px; color: $charcoal; font-family: $font-serif-jp; white-space: nowrap;
+}
+.pathArrow { color: $stone; margin: 0 8px; font-size: 11px; }
+
+/* 次に聞かれること */
+.nextList { display: flex; flex-direction: column; gap: 16px; }
+.nextBlock {
+  & + & { border-top: 1px solid rgba($stone, .15); padding-top: 14px; }
+}
+// 横いっぱいのときは2列に。段の途中で切れないようにします
+.cardWide .nextList {
+  display: block;
+  @media (min-width: 901px) {
+    column-count: 2; column-gap: 40px;
+  }
+}
+.cardWide .nextBlock {
+  break-inside: avoid; page-break-inside: avoid;
+  margin-bottom: 16px;
+  & + & { border-top: none; padding-top: 0; }
+}
+.nextFrom {
+  font-size: 13px; font-weight: 600; color: $charcoal;
+  font-family: $font-serif-jp; margin-bottom: 8px;
+}
+.nextTotal { font-size: 11px; font-weight: 400; color: $stone; margin-left: 8px; }
+.nextRow { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.nextLabel {
+  flex: 0 0 38%; font-size: 12px; color: $charcoal-light; font-family: $font-serif-jp;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nextBarTrack {
+  flex: 1 1 auto; height: 6px; border-radius: 3px;
+  background: rgba($stone, .15); overflow: hidden;
+}
+.nextBarFill { display: block; height: 100%; background: $gold; border-radius: 3px; }
+.nextVal {
+  flex: 0 0 auto; min-width: 36px; text-align: right;
+  font-size: 11px; color: $stone; font-family: $font-serif-jp;
+}
+.nextSame {
+  font-size: 11px; color: $stone; font-family: $font-serif-jp; margin-top: 6px;
+}
+
+/* 入口と出口 */
+.endsRow { display: flex; gap: 24px; }
+.endsCol { flex: 1 1 0; min-width: 0; }
+.endsTitle {
+  font-size: 12px; font-weight: 600; color: $charcoal;
+  font-family: $font-serif-jp; margin-bottom: 10px;
+}
+.endsItem { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.endsDot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; }
+.endsLabel {
+  flex: 1 1 auto; min-width: 0;
+  font-size: 12px; color: $charcoal-light; font-family: $font-serif-jp;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.endsVal {
+  flex: 0 0 auto; font-size: 11px; color: $stone; font-family: $font-serif-jp;
+}

@@ -34,13 +34,13 @@ type Backup = {
   property: { title: string; content: string } | null;
   salesPrompts: { section: string; content: string }[];
   knowledgeCategories: { id: string; label: string; hint: string | null; target: string; sort: number }[];
-  knowledgeDocs: { id: string; category: string; title: string; content: string; fileName: string | null }[];
+  knowledgeDocs: { id: string; category: string; title: string; content: string; fileName: string | null; priority?: number }[];
   design: Record<string, unknown> | null;
   personas: Record<string, unknown>[];
   /** マトリクスは「人が入れた部分」だけ。枠組みは design/ のJSONが正 */
   matrices: { code: string; requiredContent: string[]; content: string | null; status: string }[];
   /** 想定問答も、人が書いた回答方針と固定回答だけ */
-  faqs: { id: string; policy: string | null; answer: string | null }[];
+  faqs: { id: string; policy: string | null; answer: string | null; enabled?: boolean }[];
 };
 
 export async function GET() {
@@ -72,11 +72,15 @@ export async function GET() {
       .filter((m: { requiredContent: string[]; status: string }) =>
         m.requiredContent.some((v) => v && v.trim()) || m.status === 'registered');
 
+    // 「使わない」にした想定問答は、回答方針が空でも書き出します。
+    // 書き出さないと、戻したときに全部“使う”に戻ってしまいます。
     const faqPart = faqs
-      .map((f: { id: string; policy: string | null; answer: string | null }) => ({
-        id: f.id, policy: f.policy, answer: f.answer,
+      .map((f: { id: string; policy: string | null; answer: string | null; enabled: boolean }) => ({
+        id: f.id, policy: f.policy, answer: f.answer, enabled: f.enabled,
       }))
-      .filter((f: { policy: string | null; answer: string | null }) => f.policy?.trim() || f.answer?.trim());
+      .filter((f: { policy: string | null; answer: string | null; enabled: boolean }) => (
+        f.policy?.trim() || f.answer?.trim() || f.enabled === false
+      ));
 
     const backup: Backup = {
       format: FORMAT_VERSION,
@@ -97,8 +101,14 @@ export async function GET() {
       })),
       knowledgeCategories: cats,
       knowledgeDocs: docs.map(
-        (d: { id: string; category: string; title: string; content: string; fileName: string | null }) => ({
-          id: d.id, category: d.category, title: d.title, content: d.content, fileName: d.fileName,
+        (d: {
+          id: string; category: string; title: string;
+          content: string; fileName: string | null; priority: number;
+        }) => ({
+          id: d.id, category: d.category, title: d.title, content: d.content,
+          fileName: d.fileName,
+          // 読む順番も残します。入れないと、戻したとき全部ふつうに戻ります
+          priority: d.priority,
         }),
       ),
       design: design || null,
@@ -187,10 +197,15 @@ export async function POST(req: NextRequest) {
       if (!d.id || !d.content) continue;
       await prisma.knowledgeDoc.upsert({
         where: { id: d.id },
-        update: { category: d.category, title: d.title, content: d.content, fileName: d.fileName },
+        update: {
+          category: d.category, title: d.title, content: d.content, fileName: d.fileName,
+          // 古い書き出しには入っていない項目なので、無ければ触りません
+          priority: typeof d.priority === 'number' ? d.priority : undefined,
+        },
         create: {
           id: d.id, category: d.category, title: d.title,
           content: d.content, fileName: d.fileName,
+          priority: typeof d.priority === 'number' ? d.priority : 1,
         },
       });
       result.保管した資料 = (result.保管した資料 || 0) + 1;
@@ -232,7 +247,12 @@ export async function POST(req: NextRequest) {
       if (!exists) { skipped.push(`想定問答 ${f.id}`); continue; }
       await prisma.faqSeed.update({
         where: { id: f.id },
-        data: { policy: f.policy, answer: f.answer },
+        data: {
+          policy: f.policy,
+          answer: f.answer,
+          // 古い書き出しには入っていない項目なので、無ければ触りません
+          enabled: typeof f.enabled === 'boolean' ? f.enabled : undefined,
+        },
       });
       result.想定問答 = (result.想定問答 || 0) + 1;
     }

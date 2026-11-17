@@ -53,6 +53,11 @@ export interface DocCandidate {
   length: number;
   truncated: boolean;
   text: string;
+  /**
+   * AIが読む優先度。2=高 / 1=普通 / 0=低。
+   * 判定の結果には入っていないので、取り込む画面で「普通」から始めます。
+   */
+  priority?: number;
 }
 
 /**
@@ -255,7 +260,13 @@ export default function IntakePanel({ onApplied }: { onApplied: () => void }) {
             mode: sectionMode[s.section] || 'append',
           })),
           doc: doc && docOn
-            ? { category: doc.category, title: doc.title, content: doc.text, fileName: doc.fileName }
+            ? {
+              category: doc.category,
+              title: doc.title,
+              content: doc.text,
+              fileName: doc.fileName,
+              priority: doc.priority ?? 1,
+            }
             : null,
         }),
       });
@@ -1057,6 +1068,13 @@ function DocGroup({ doc, on, categories, onToggle, onChange }: {
                   {categories.length === 0 && <option value="">分類が未登録です</option>}
                   {categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
                 </select>
+                <select className={styles.select} value={doc.priority ?? 1}
+                  onChange={(e) => onChange({ priority: Number(e.target.value) })}
+                  title="AIが読む優先度">
+                  <option value={2}>優先度 高</option>
+                  <option value={1}>優先度 普通</option>
+                  <option value={0}>優先度 低</option>
+                </select>
                 <button type="button" className={styles.linkBtn} onClick={() => setOpen((v) => !v)}>
                   {open ? '本文を閉じる' : '本文を見る'}
                 </button>
@@ -1073,6 +1091,8 @@ function DocGroup({ doc, on, categories, onToggle, onChange }: {
 
               <p className={styles.sourceNote}>
                 読み取った本文をそのまま保管します。AIは分類の設定にしたがって参照します。
+                優先度の高い資料から先に読み、資料どうしが食い違ったときは高いほうを採ります
+                （あとから「資料」タブでも変えられます）。
               </p>
             </div>
           </div>

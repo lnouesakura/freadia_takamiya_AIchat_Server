@@ -128,6 +128,19 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, doc });
     }
 
+    // 資料を読む順番の変更。
+    // 並べる順番を変えるだけで、食い違いの扱いは変えていません。
+    if (action === 'priority') {
+        const id = String(body?.id || '');
+        const priority = Number(body?.priority);
+        if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 });
+        if (![0, 1, 2].includes(priority)) {
+            return NextResponse.json({ error: 'priority は 0／1／2 です' }, { status: 400 });
+        }
+        const doc = await prisma.knowledgeDoc.update({ where: { id }, data: { priority } });
+        return NextResponse.json({ ok: true, doc });
+    }
+
     return NextResponse.json({ error: 'action が不正です' }, { status: 400 });
 }
 

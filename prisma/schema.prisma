@@ -79,10 +79,14 @@ model KnowledgeDoc {
   title     String
   content   String
   fileName  String?
+  /// 回答を作るときに読む順番。大きいほど先に読みます（2=高い / 1=ふつう / 0=低い）
+  /// 食い違いの扱いは変わりません。資料は今までどおり断定しません。
+  priority  Int      @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([category])
+  @@index([priority])
   @@map("knowledge_docs")
 }
 

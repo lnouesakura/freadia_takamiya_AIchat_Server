@@ -9,6 +9,22 @@ import StatCard from '@/components/admin/StatCard/StatCard';
 import styles from './page.module.scss';
 
 const COLORS = ['#B8945F', '#D4AF7A', '#8B6E3F', '#1A2332', '#4A6080', '#6B8CAE', '#C4A882', '#E8D5B0'];
+
+/** 質問の流れ（/api/admin/question-route が返すもの） */
+type RouteCount = { label: string; count: number; share: number };
+type RouteResult = {
+  sessions: number;
+  questions: number;
+  avgPerSession: number;
+  enough: boolean;
+  singleQuestion: number;
+  first: RouteCount[];
+  last: RouteCount[];
+  next: { from: string; total: number; same: number; to: RouteCount[] }[];
+  paths: { steps: string[]; count: number; share: number }[];
+  days: number;
+  capped: boolean;
+};
 const HOUR_DIST = [
   { hour: '9時', count: 4 }, { hour: '10時', count: 8 }, { hour: '11時', count: 12 },
   { hour: '12時', count: 7 }, { hour: '13時', count: 5 }, { hour: '14時', count: 14 },
@@ -32,6 +48,20 @@ export default function AnalyticsPage() {
 
   // トレンド期間
   const [chartDays, setChartDays] = useState(14);
+
+  // 質問の流れ（どの話題のあと、次に何を聞かれるか）
+  const [route, setRoute] = useState<RouteResult | null>(null);
+  const [routeDays, setRouteDays] = useState(30);
+  const [routeLoading, setRouteLoading] = useState(true);
+
+  useEffect(() => {
+    setRouteLoading(true);
+    fetch(`/api/admin/question-route?days=${routeDays}`)
+      .then((r) => r.json())
+      .then((d) => setRoute(d && !d.error ? d : null))
+      .catch(() => setRoute(null))
+      .finally(() => setRouteLoading(false));
+  }, [routeDays]);
 
   // タイムラインメモ
   const [memos, setMemos] = useState<any[]>([]);
@@ -196,6 +226,144 @@ export default function AnalyticsPage() {
           </div>
         )}
       </div>
+      {/* ── 質問の流れ ── */}
+      <div className={styles.routeSection}>
+        <div className={styles.routeHead}>
+          <div>
+            <p className={styles.cardTitle}>質問の流れ</p>
+            <p className={styles.routeLead}>
+              何を聞いたあと、次に何を聞かれるか。会話ごとに質問を順に並べて数えています。
+            </p>
+          </div>
+          <div className={styles.routeDays}>
+            {[30, 90, 0].map((d) => (
+              <button key={d} type="button"
+                className={`${styles.routeDayBtn} ${routeDays === d ? styles.routeDayBtnOn : ''}`}
+                onClick={() => setRouteDays(d)}>
+                {d === 0 ? '全期間' : `${d}日`}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {routeLoading && <p className={styles.routeMsg}>集計中...</p>}
+
+        {!routeLoading && (!route || route.sessions === 0) && (
+          <p className={styles.routeMsg}>
+            この期間に記録された質問がありません。チャットが使われると自動でたまっていきます。
+          </p>
+        )}
+
+        {!routeLoading && route && route.sessions > 0 && (
+          <>
+            <div className={styles.routeStats}>
+              <span><strong>{route.sessions}</strong>件の会話</span>
+              <span><strong>{route.questions}</strong>問の質問</span>
+              <span>1会話あたり <strong>{route.avgPerSession}</strong>問</span>
+              <span>1問で終わった会話 <strong>{route.singleQuestion}</strong>件</span>
+            </div>
+
+            {!route.enough && (
+              <p className={styles.routeWarn}>
+                まだ{route.sessions}件の会話しかありません。
+                ここに出ているのは「実際にあった並び」であって、傾向とは言えません。
+                20件ほどたまってから読んでください。
+              </p>
+            )}
+            {route.capped && (
+              <p className={styles.routeWarn}>
+                件数が多いため、新しい5000問までを対象にしています。
+              </p>
+            )}
+
+            <div className={styles.routeGrid}>
+              <div className={styles.card}>
+                <p className={styles.cardTitle}>よくある道筋</p>
+                <p className={styles.cardNote}>3つ続けて聞かれた並びのうち、2件以上あったもの</p>
+                {route.paths.length === 0 ? (
+                  <p className={styles.routeMsg}>
+                    同じ並びが2件以上そろっていません。会話がたまると出てきます。
+                  </p>
+                ) : (
+                  <ol className={styles.pathList}>
+                    {route.paths.map((p) => (
+                      <li key={p.steps.join('>')} className={styles.pathRow}>
+                        <span className={styles.pathCount}>{p.count}件</span>
+                        <span className={styles.pathSteps}>
+                          {p.steps.map((s, i) => (
+                            <span key={`${s}-${i}`} className={styles.pathStep}>
+                              {i > 0 && <span className={styles.pathArrow}>→</span>}
+                              {s}
+                            </span>
+                          ))}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+
+
+              <div className={styles.card}>
+                <p className={styles.cardTitle}>会話の入口と出口</p>
+                <p className={styles.cardNote}>最初に聞かれたことと、そこで終わったこと</p>
+                <div className={styles.endsRow}>
+                  {([['最初の質問', route.first], ['最後の質問', route.last]] as const).map(([t, list]) => (
+                    <div key={t} className={styles.endsCol}>
+                      <p className={styles.endsTitle}>{t}</p>
+                      {list.map((x, i) => (
+                        <div key={x.label} className={styles.endsItem}>
+                          <span className={styles.endsDot} style={{ background: COLORS[i % COLORS.length] }} />
+                          <span className={styles.endsLabel}>{x.label}</span>
+                          <span className={styles.endsVal}>{x.share}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+                <p className={styles.routeTip}>
+                  最後によく出る話題は、そこで知りたいことが済んだか、
+                  答えが足りずに離れたかのどちらかです。
+                  「情報登録」で該当の資料を足すと変化を見られます。
+                </p>
+              </div>
+
+              <div className={`${styles.card} ${styles.cardWide}`}>
+                <p className={styles.cardTitle}>次に聞かれること</p>
+                <p className={styles.cardNote}>その話題のあとに続いた質問。3回以上あった話題だけ</p>
+                {route.next.length === 0 ? (
+                  <p className={styles.routeMsg}>続けて質問された会話がまだ少ないため出せません。</p>
+                ) : (
+                  <div className={styles.nextList}>
+                    {route.next.map((s) => (
+                      <div key={s.from} className={styles.nextBlock}>
+                        <p className={styles.nextFrom}>
+                          {s.from}<span className={styles.nextTotal}>のあと {s.total}回</span>
+                        </p>
+                        {s.to.map((t) => (
+                          <div key={t.label} className={styles.nextRow}>
+                            <span className={styles.nextLabel}>→ {t.label}</span>
+                            <span className={styles.nextBarTrack}>
+                              <span className={styles.nextBarFill} style={{ width: `${t.share}%` }} />
+                            </span>
+                            <span className={styles.nextVal}>{t.count}回</span>
+                          </div>
+                        ))}
+                        {s.same > 0 && (
+                          <p className={styles.nextSame}>
+                            同じ話題を続けて {s.same}回（もっと詳しく聞かれています）
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
       <div className={styles.bottomGrid}>
         <div className={styles.card}>
           <p className={styles.cardTitle}>カテゴリ別質問数</p>

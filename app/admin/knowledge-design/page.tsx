@@ -24,6 +24,8 @@ interface Matrix {
 interface Faq {
   id: string; q: string; alt: string[]; ref: string[];
   policy: string | null; risk: string; answer: string | null;
+  /** false にすると、チャットの固定回答にも質問候補にも使いません */
+  enabled: boolean;
   /** 段階（お客様がどこにいるか）S1〜S5 */
   stage: string | null;
   /** 橋渡し（次の一歩の出し方）B0〜B5 */
@@ -427,15 +429,18 @@ function PersonaRow({ p, covTotal, covDone, open, onToggle, onSaved }:
 /* ───────────── 想定問答 ───────────── */
 
 /** 質問1件のいまの状態。販売担当者が読んで分かる言葉だけで表す。 */
-type FaqState = 'ready' | 'waiting' | 'staff';
+type FaqState = 'ready' | 'waiting' | 'staff' | 'off';
 
 const FAQ_STATE_LABEL: Record<FaqState, string> = {
   ready: 'いま答えられます',
   waiting: '情報待ち',
   staff: '担当者へつなぐ',
+  off: '使いません',
 };
 
 function faqStateOf(f: Faq, registered: Set<string>): FaqState {
+  // 「使わない」にしたものが最優先。情報が揃っていても答えません
+  if (f.enabled === false) return 'off';
   // 有人引継ぎ区分は、情報が揃っても自動回答しない
   if (f.risk === 'escalate') return 'staff';
   return f.ref.every((r) => registered.has(r)) ? 'ready' : 'waiting';
@@ -474,6 +479,7 @@ function FaqPanel({ faqs, matrices, onSaved }:
             ['ready', `いま答えられる（${countOf('ready')}）`],
             ['waiting', `情報待ち（${countOf('waiting')}）`],
             ['staff', `担当者へつなぐ（${countOf('staff')}）`],
+            ['off', `使わない（${countOf('off')}）`],
           ] as const).map(([k, l]) => (
             <button key={k} type="button"
               className={`${styles.chip} ${state === k ? styles.chipActive : ''}`}
@@ -517,32 +523,54 @@ function FaqRow({ f, state, missingTitles, refTitles, open, onToggle, onSaved }:
   const [policy, setPolicy] = useState(f.policy || '');
   const [answer, setAnswer] = useState(f.answer || '');
   const [saving, setSaving] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const off = f.enabled === false;
 
-  const save = async () => {
-    setSaving(true);
+  const patch = async (data: Record<string, unknown>) => {
     await fetch('/api/admin/knowledge-design', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'faq', id: f.id, data: { policy, answer } }),
+      body: JSON.stringify({ type: 'faq', id: f.id, data }),
     });
-    setSaving(false);
     onSaved();
   };
 
+  const save = async () => {
+    setSaving(true);
+    await patch({ policy, answer });
+    setSaving(false);
+  };
+
+  /** 使う／使わないの切り替え。開かなくても押せます */
+  const toggleEnabled = async () => {
+    setSwitching(true);
+    await patch({ enabled: off });
+    setSwitching(false);
+  };
+
   return (
-    <div className={styles.card}>
-      <button type="button" className={styles.cardHead} onClick={onToggle}>
-        <span className={styles.cardTitle}>{f.q}</span>
-        <span className={styles.tags}>
-          <span className={
-            state === 'ready' ? styles.tagDone
-            : state === 'staff' ? styles.tagWarn
-            : styles.tagPending
-          }>
-            {FAQ_STATE_LABEL[state]}
+    <div className={`${styles.card} ${off ? styles.cardOff : ''}`}>
+      <div className={styles.cardHeadRow}>
+        <button type="button" className={styles.cardHead} onClick={onToggle}>
+          <span className={styles.cardTitle}>{f.q}</span>
+          <span className={styles.tags}>
+            <span className={
+              state === 'off' ? styles.tagOff
+              : state === 'ready' ? styles.tagDone
+              : state === 'staff' ? styles.tagWarn
+              : styles.tagPending
+            }>
+              {FAQ_STATE_LABEL[state]}
+            </span>
           </span>
-        </span>
-      </button>
+        </button>
+        <button type="button"
+          className={`${styles.switchBtn} ${off ? styles.switchBtnOff : ''}`}
+          onClick={toggleEnabled} disabled={switching}
+          title={off ? 'チャットで使うようにします' : 'チャットで使わないようにします'}>
+          {switching ? '…' : off ? '使う' : '使わない'}
+        </button>
+      </div>
 
       {open && (
         <div className={styles.cardBody}>
@@ -550,6 +578,13 @@ function FaqRow({ f, state, missingTitles, refTitles, open, onToggle, onSaved }:
             <p className={styles.sub}>答えるために必要な情報：{refTitles.join('／')}</p>
           )}
 
+          {state === 'off' && (
+            <p className={styles.blockNote}>
+              この質問は「使わない」にしてあります。
+              チャットの固定回答にも、ページごとの「よくあるご質問」にも出ません。
+              下の回答方針や固定回答は残っているので、「使う」に戻せばそのまま効きます。
+            </p>
+          )}
           {state === 'waiting' && (
             <p className={styles.blockNote}>
               「{missingTitles.join('」「')}」がまだ登録されていないため、AIはこの質問に答えません。
@@ -622,6 +657,11 @@ function SuggestPanel({ faqs }: { faqs: Faq[] }) {
   useEffect(load, []);
 
   const qById = useMemo(() => new Map(faqs.map((f) => [f.id, f.q])), [faqs]);
+  /** 「使わない」にされている想定問答のid */
+  const offIds = useMemo(
+    () => new Set(faqs.filter((f) => f.enabled === false).map((f) => f.id)),
+    [faqs],
+  );
 
   const save = async (set: QuestionSet) => {
     setBusy(true); setMsg('');
@@ -660,7 +700,9 @@ function SuggestPanel({ faqs }: { faqs: Faq[] }) {
 
   if (loading) return <p className={styles.stateMsg}>読み込み中...</p>;
 
-  const shown = faqs.filter((f) => !q || f.q.includes(q));
+  // 「使わない」にした想定問答は選べません。
+  // 選べてしまうと、チャット側では黙って外れて候補が1つ減ります
+  const shown = faqs.filter((f) => f.enabled !== false && (!q || f.q.includes(q)));
 
   /**
    * 編集欄です。
@@ -691,7 +733,12 @@ function SuggestPanel({ faqs }: { faqs: Faq[] }) {
       <ol className={styles.setList}>
         {cur.questionIds.map((id, i) => (
           <li key={id} className={styles.setItem}>
-            <span className={styles.setItemText}>{qById.get(id) || id}</span>
+            <span className={styles.setItemText}>
+              {qById.get(id) || id}
+              {offIds.has(id) && (
+                <span className={styles.offMark}>「使わない」のため出ません</span>
+              )}
+            </span>
             <button type="button" className={styles.rowBtn} disabled={i === 0}
               onClick={() => {
                 const next = [...cur.questionIds];
@@ -795,6 +842,9 @@ function SuggestPanel({ faqs }: { faqs: Faq[] }) {
                   {set.questionIds.map((id) => (
                     <li key={id} className={styles.setItem}>
                       {qById.get(id) || `（想定問答にありません：${id}）`}
+                      {offIds.has(id) && (
+                        <span className={styles.offMark}>想定問答で「使わない」にされているため出ません</span>
+                      )}
                     </li>
                   ))}
                 </ol>

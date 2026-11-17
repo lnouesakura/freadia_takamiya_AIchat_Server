@@ -556,3 +556,67 @@
 .pickQOn {
   border-color: $gold-dark; background: rgba($gold, .12);
 }
+
+/* ── 想定問答の 使う／使わない ───────────────────── */
+
+// 見出しの行。開閉ボタンと切り替えボタンを横に並べます
+// （ボタンの中にボタンは置けないので、行を分けています）
+.cardHeadRow {
+  display: flex; align-items: stretch;
+  > .cardHead { flex: 1 1 auto; min-width: 0; }
+}
+
+.switchBtn {
+  flex: 0 0 auto; white-space: nowrap; align-self: center;
+  margin-right: 14px;
+  padding: 7px 16px; border-radius: $radius-md; cursor: pointer;
+  background: $white; border: 1px solid rgba($stone, .35); color: $charcoal-light;
+  font-size: 12px; font-family: $font-serif-jp; transition: all .2s;
+  &:hover:not(:disabled) { border-color: $gold; color: $charcoal; }
+  &:disabled { opacity: .45; cursor: not-allowed; }
+  @include focus-ring;
+}
+// 「使わない」状態のとき押すと元に戻るボタン
+.switchBtnOff {
+  background: $gold; border-color: $gold; color: $white;
+  &:hover:not(:disabled) { background: $gold-dark; border-color: $gold-dark; color: $white; }
+}
+
+// 使わないことにした質問は、ひと目で分かるよう薄くします
+.cardOff {
+  background: rgba($stone, .05);
+  .cardTitle { color: $stone; text-decoration: line-through; }
+}
+
+.tagOff {
+  padding: 3px 9px; border-radius: $radius-full;
+  font-size: 10px; font-family: $font-serif-jp; white-space: nowrap;
+  background: rgba($stone, .18); color: $charcoal-light;
+}
+
+// 質問候補に選ばれているが、想定問答で「使わない」にされているもの
+.offMark {
+  display: inline-block; margin-left: 10px;
+  padding: 2px 8px; border-radius: $radius-full;
+  background: rgba($gold, .15); color: $gold-dark;
+  font-size: 10px; font-family: $font-serif-jp; white-space: nowrap;
+}
+
+// 選択中の絞り込みは、マウスを乗せても白文字のままにします。
+// .chip:hover のほうが .chipActive より強いため、
+// 押したあとカーソルを置いたままだと黒地に黒文字になっていました。
+.chipActive:hover { color: $white; background: $charcoal; border-color: $charcoal; }
+
+// プルダウンの下矢印。
+// ブラウザが描く矢印は枠のすぐ内側に寄ってしまい、文字とも枠とも近すぎたので、
+// 自前の矢印に差し替えて、右に14pxの余白をとっています。
+.select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238A8680' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 10px 6px;
+  // Edge/IE が足す矢印を消します
+  &::-ms-expand { display: none; }
+}

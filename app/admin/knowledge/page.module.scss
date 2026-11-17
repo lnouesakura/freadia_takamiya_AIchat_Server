@@ -1259,3 +1259,59 @@
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   margin: 16px 0 2px;
 }
+
+// 資料を読む順番。先に読む／あとで読むを目立たせます
+.selectHigh {
+  border-color: $gold; color: $gold-dark; background: rgba($gold, .08);
+}
+.selectLow {
+  color: $stone;
+}
+
+// 選択中の絞り込みは、マウスを乗せても白文字のままにします
+.chipActive:hover { color: $white; background: $charcoal; border-color: $charcoal; }
+
+// 分類の見出し（物件資料・接客など）の上下に余白をとります。
+// 詰まっていて、どこから下がその分類なのか分かりにくかったためです。
+.docSection {
+  margin-bottom: 30px;
+  padding-top: 16px;
+  &:first-of-type { padding-top: 8px; }
+}
+.docSectionTitle { margin: 0 0 14px; }
+
+// プルダウンの下矢印。
+// ブラウザが描く矢印は枠のすぐ内側に寄ってしまい、文字とも枠とも近すぎたので、
+// 自前の矢印に差し替えて、右に14pxの余白をとっています。
+.select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238A8680' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 10px 6px;
+  // Edge/IE が足す矢印を消します
+  &::-ms-expand { display: none; }
+}
+
+// 資料一覧の見出し行。行の各列と幅をそろえます
+.docHead {
+  display: flex; gap: 10px; align-items: center;
+  padding: 0 16px 6px;
+  font-size: 11px; color: $stone; font-family: $font-serif-jp; letter-spacing: .04em;
+}
+.docHeadMain { flex: 1; min-width: 180px; }
+.docHeadCol  { flex: 0 0 86px; }
+.docHeadCol2 { flex: 0 0 140px; }
+.docHeadDel  { flex: 0 0 28px; }
+
+// 行側の列幅。見出しと同じにします
+.docPriority { flex: 0 0 86px; }
+.docCategory { flex: 0 0 140px; }
+.docDel { flex: 0 0 28px; text-align: right; }
+
+// 列がそろわなくなるので、狭い画面では見出しを隠します
+@media (max-width: 760px) {
+  .docHead { display: none; }
+  .docPriority, .docCategory, .docDel { flex: 0 0 auto; }
+}

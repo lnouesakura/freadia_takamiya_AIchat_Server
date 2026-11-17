@@ -57,7 +57,13 @@ export async function buildChatPrompt(characterId?: string): Promise<string> {
   const [property, sales, docs, categories] = await Promise.all([
     safe(prisma.propertyInfo.findFirst({ orderBy: { updatedAt: 'desc' } }), null),
     safe(prisma.salesPrompt.findMany(), []),
-    safe(prisma.knowledgeDoc.findMany({ orderBy: { createdAt: 'asc' } }), []),
+    // 優先度の高い資料から先に読ませます（管理画面の「資料」で決めます）。
+    // 同じ優先度のときは、これまでどおり古いものから並べます。
+    // ※ 並べる順番を変えるだけで、食い違いの扱いは変えていません。
+    //    資料は今までどおり断定せず、担当者が確認する扱いのままです。
+    safe(prisma.knowledgeDoc.findMany({
+      orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
+    }), []),
     safe(prisma.knowledgeCategory.findMany(), []),
   ]);
 
@@ -89,11 +95,18 @@ export async function buildChatPrompt(characterId?: string): Promise<string> {
     const otherDocs = docs.filter((d) => targetOf(d.category) !== 'property');
     // 物件情報タブの本文には混ぜず、別のかたまりとして渡します。
     // 混ぜていたころは、公式の設備仕様と取り込んだ資料の区別が付きませんでした。
+    // 題名のうしろに優先度を書き添えます。
+    // 並び順だけでは「どちらが優先か」をAIが判断できないため、
+    // 資料どうしが食い違ったときに高いほうを採れるよう、明示します。
+    const PRIORITY_WORD: Record<number, string> = { 2: '高', 1: '普通', 0: '低' };
+    const head = (d: { title: string; priority?: number }) =>
+      `【${d.title}】（優先度 ${PRIORITY_WORD[d.priority ?? 1] ?? '普通'}）`;
+
     if (propertyDocs.length) {
-      referenceDocs = propertyDocs.map((d) => `【${d.title}】\n${d.content}`).join('\n\n');
+      referenceDocs = propertyDocs.map((d) => `${head(d)}\n${d.content}`).join('\n\n');
     }
     if (otherDocs.length) {
-      extraChatKnowledge = otherDocs.map((d) => `【${d.title}】\n${d.content}`).join('\n\n');
+      extraChatKnowledge = otherDocs.map((d) => `${head(d)}\n${d.content}`).join('\n\n');
     }
   }
 

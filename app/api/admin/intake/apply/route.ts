@@ -20,7 +20,11 @@ export const maxDuration = 60;
 
 type MatrixEntry = { code: string; index: number; value: string };
 type SectionEntry = { section: string; value: string; mode?: 'append' | 'overwrite' };
-type DocEntry = { category: string; title: string; content: string; fileName?: string | null };
+type DocEntry = {
+  category: string; title: string; content: string; fileName?: string | null;
+  /** AIが読む優先度。2=高 / 1=普通 / 0=低。省略されたら普通 */
+  priority?: number;
+};
 
 /** プーラー切断対策：DB操作を数回リトライ */
 async function withRetry<T>(fn: () => Promise<T> | T, tries = 3): Promise<T> {
@@ -151,6 +155,8 @@ export async function POST(req: NextRequest) {
             title: (doc.title || '無題').slice(0, 200),
             content: doc.content,
             fileName: doc.fileName || null,
+            // 想定外の値が来ても「普通」に寄せます
+            priority: [0, 1, 2].includes(Number(doc.priority)) ? Number(doc.priority) : 1,
           },
         }));
         result.doc = true;

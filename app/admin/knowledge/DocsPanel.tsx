@@ -12,7 +12,41 @@ type Category = { id: string; label: string; hint: string | null; target: string
 type Doc = {
   id: string; category: string; title: string;
   content: string; fileName: string | null; createdAt: string;
+  /** 回答を作るときに読む順番。2=先に読む / 1=ふつう / 0=あとで読む */
+  priority: number;
 };
+
+/**
+ * 資料の優先度。
+ *
+ * 高いものから先にAIに渡し、題名のうしろに優先度を書き添えます。
+ * 資料どうしで内容が食い違ったときは、優先度の高いほうを採ります。
+ *
+ * ただし資料そのものは、物件情報・情報マトリクスより下位です。
+ * 回答のもとにする順番は
+ *   物件情報タブ → 情報マトリクス → 資料（優先度の高いものから）
+ * で、上位と食い違ったときは上位を採ります。
+ *
+ * 資料にしか書かれていないことは、今までどおり断定せず、
+ * 担当者が確認する案内になります。
+ */
+const PRIORITY_LABEL: Record<number, string> = {
+  2: '高',
+  1: '普通',
+  0: '低',
+};
+
+/** 一覧の見出し行。どの列が何なのかを示します */
+function DocHead() {
+  return (
+    <div className={styles.docHead}>
+      <span className={styles.docHeadMain}>資料</span>
+      <span className={styles.docHeadCol}>優先度</span>
+      <span className={styles.docHeadCol2}>種類</span>
+      <span className={styles.docHeadDel} />
+    </div>
+  );
+}
 
 const TARGET_LABEL: Record<string, string> = {
   property: '物件知識として使う',
@@ -37,6 +71,15 @@ export default function DocsPanel({ reloadKey }: { reloadKey: number }) {
       .then((d) => setDocs(d.docs || []));
 
   useEffect(() => { loadCats(); loadDocs(); }, [reloadKey]);
+
+  const setPriority = async (id: string, priority: number) => {
+    setDocs((ds) => ds.map((x) => (x.id === id ? { ...x, priority } : x)));
+    await fetch('/api/admin/knowledge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'priority', id, priority }),
+    }).catch(() => {});
+  };
 
   const moveDoc = async (id: string, category: string) => {
     setDocs((ds) => ds.map((x) => (x.id === id ? { ...x, category } : x)));
@@ -124,18 +167,34 @@ export default function DocsPanel({ reloadKey }: { reloadKey: number }) {
         </div>
       )}
 
+      <p className={styles.blockNote}>
+        優先度の高い資料から順にAIが読みます。先に読ませたいものは「高」にしてください。
+        <strong>資料どうしで内容が食い違ったときは、優先度の高いほうを採って答えます。</strong>
+        同じ優先度どうしで食い違ったときは、決めつけずに担当者が確認する案内になります。
+        <br />
+        回答のもとにする順番は <strong>物件情報タブ → 情報マトリクス → 資料</strong> です。
+        資料より上の2つと食い違ったときは、そちらが優先されます。
+        食い違いそのものは「整合性チェック」で片付けておくのが基本で、
+        優先度はそれでも残ってしまったときの備えです。
+      </p>
+
       {cats.map((c) => {
-        const list = docs.filter((d) => d.category === c.id);
+        const list = docs.filter((d) => d.category === c.id)
+          .slice()
+          .sort((a, b) => (b.priority ?? 1) - (a.priority ?? 1)
+            || a.createdAt.localeCompare(b.createdAt));
         return (
           <div key={c.id} className={styles.docSection}>
             <p className={styles.docSectionTitle}>
               {c.label}
               <span className={styles.docSectionCount}>{list.length}</span>
             </p>
+            {list.length > 0 && <DocHead />}
             {list.length > 0 ? list.map((d) => (
               <DocRow key={d.id} doc={d} cats={cats}
                 onPreview={() => setPreview(d)}
                 onMove={(cat) => moveDoc(d.id, cat)}
+                onPriority={(v) => setPriority(d.id, v)}
                 onDelete={() => removeDoc(d.id)} />
             )) : <p className={styles.empty}>まだ登録がありません。</p>}
           </div>
@@ -151,10 +210,12 @@ export default function DocsPanel({ reloadKey }: { reloadKey: number }) {
           <p className={styles.blockNote}>
             分類が削除されたため、どの一覧にも属していません。下で分類を選び直してください。
           </p>
+          <DocHead />
           {orphans.map((d) => (
             <DocRow key={d.id} doc={d} cats={cats}
               onPreview={() => setPreview(d)}
               onMove={(cat) => moveDoc(d.id, cat)}
+              onPriority={(v) => setPriority(d.id, v)}
               onDelete={() => removeDoc(d.id)} />
           ))}
         </div>
@@ -208,20 +269,29 @@ export default function DocsPanel({ reloadKey }: { reloadKey: number }) {
   );
 }
 
-function DocRow({ doc, cats, onPreview, onMove, onDelete }: {
+function DocRow({ doc, cats, onPreview, onMove, onPriority, onDelete }: {
   doc: Doc;
   cats: Category[];
   onPreview: () => void;
   onMove: (category: string) => void;
+  onPriority: (priority: number) => void;
   onDelete: () => void;
 }) {
+  const pr = doc.priority ?? 1;
   return (
     <div className={styles.docRow}>
       <button type="button" className={styles.docMain} onClick={onPreview}>
         <span className={styles.docName}>{doc.title}</span>
         <span className={styles.docSnippet}>{doc.content.slice(0, 80)}…</span>
       </button>
-      <select className={styles.select} value={doc.category} onChange={(e) => onMove(e.target.value)}>
+      <select
+        className={`${styles.select} ${styles.docPriority} ${pr === 2 ? styles.selectHigh : pr === 0 ? styles.selectLow : ''}`}
+        value={pr} onChange={(e) => onPriority(Number(e.target.value))}
+        title="AIが読む優先度">
+        {[2, 1, 0].map((v) => <option key={v} value={v}>{PRIORITY_LABEL[v]}</option>)}
+      </select>
+      <select className={`${styles.select} ${styles.docCategory}`}
+        value={doc.category} onChange={(e) => onMove(e.target.value)}>
         {!cats.some((c) => c.id === doc.category) && <option value={doc.category}>分類なし</option>}
         {cats.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
       </select>

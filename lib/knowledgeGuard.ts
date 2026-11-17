@@ -36,7 +36,9 @@ export async function buildKnowledgeGuard(): Promise<string> {
     [design, matrices, faqs, personas] = await Promise.all([
       prisma.knowledgeDesign.findFirst(),
       prisma.knowledgeMatrix.findMany({ orderBy: { no: 'asc' } }),
-      prisma.faqSeed.findMany(),
+      // enabled が false のものは、管理画面で「使わない」にされた想定問答です。
+      // 固定回答にも使いません（ここを絞らないと、オフにしても答えてしまいます）
+      prisma.faqSeed.findMany({ where: { enabled: true } }),
       prisma.persona.findMany({ orderBy: { sort: 'asc' } }),
     ]);
   } catch {
@@ -136,10 +138,11 @@ ${list.map((t) => `・${t}`).join('\n')}${rest > 0 ? `\n（ほか ${rest} 件）
     parts.push(
       // 「正式な情報」と明記します。
       // ここは項目ごとに精査して登録した内容なので、取り込んだ資料より上位です。
-      // ただし【物件情報（登録済み）】とは同列で、食い違うときは
-      // どちらかを選ばせず、担当者につなぐよう systemPrompt 側で定めています。
+      // 【物件情報（登録済み）】はこれより上位で、食い違うときはあちらを採ります。
+      // 順位そのものは systemPrompt 側の「情報の優先順位」で定めています。
       `【登録済みの詳細情報】
-この物件について登録された正式な情報です。【物件情報（登録済み）】と同じ重みで扱ってください。
+この物件について登録された正式な情報です。
+【物件情報（登録済み）】と食い違うときは、【物件情報（登録済み）】を採ってください。
 ${filled.map((m) => `■ ${m.title}\n${m.content}`).join('\n\n')}`,
     );
   }

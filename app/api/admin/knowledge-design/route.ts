@@ -125,6 +125,9 @@ export async function PATCH(req: NextRequest) {
           policy: data.policy as string | undefined,
           risk: data.risk as string | undefined,
           answer: data.answer as string | undefined,
+          // 使う／使わないの切り替え。
+          // 省略されたときは触りません（他の項目だけ直すことがあるため）
+          enabled: typeof data.enabled === 'boolean' ? data.enabled : undefined,
         },
       });
       return NextResponse.json(updated);
