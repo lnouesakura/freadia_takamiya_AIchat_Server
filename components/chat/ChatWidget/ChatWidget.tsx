@@ -29,6 +29,9 @@ import { splitMedia } from '@/lib/chatMedia';
 import { CONSENT_KEY } from '@/lib/consent';
 import styles from './ChatWidget.module.scss';
 
+// 2回目以降の質問候補を、自動で見える位置まで送るまでの時間
+const FOLLOWUP_SCROLL_DELAY_MS = 20000;
+
 const BROWSER_ID_KEY = 'ai_chat_browser_id';
 const SENTENCE_END = /[。！？\n]/;
 
@@ -264,6 +267,30 @@ export default function ChatWidget({
 
   // 同意が済んだら、そのページ向けの「よくあるご質問」を取りに行きます。
   // 同意前に出しても押せないので、済んでからにしています。
+  // お客様が最初の質問を送ったあと（2回目以降）は、候補を会話の下に置く。
+  // 冒頭のあいさつ文だけの間は、従来どおり入力欄の上に出す
+  const followUp = messages.some((m) => m.role === 'user');
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 回答が終わって候補が出たら、20秒後に自動で下まで送って候補を見せる。
+  // お客様が自分でスクロールし始めたら、自動送りはやめます。
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!followUp || isLoading || !el || !suggestions.some((s) => s.questions.length)) return;
+
+    const cancel = () => window.clearTimeout(timer);
+    const timer = window.setTimeout(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    }, FOLLOWUP_SCROLL_DELAY_MS);
+    el.addEventListener('wheel', cancel, { passive: true });
+    el.addEventListener('touchmove', cancel, { passive: true });
+    return () => {
+      cancel();
+      el.removeEventListener('wheel', cancel);
+      el.removeEventListener('touchmove', cancel);
+    };
+  }, [followUp, isLoading, suggestions]);
+
   const loadedSuggestions = useRef(false);
   useEffect(() => {
     if (consented !== true || loadedSuggestions.current) return;
@@ -502,15 +529,34 @@ export default function ChatWidget({
             }`}
           >
             <div className={styles.inner}>
-              <div className={styles.scroll}>
-                <ChatMessages
-                  messages={messages}
-                  isLoading={isLoading}
-                  character={character}
-                  isSpeaking={isSpeaking}
-                  onStopSpeech={stop}
-                  hideInlineMedia={showMedia}
-                />
+              <div className={styles.scroll} ref={scrollRef}>
+                <div className={styles.scrollMessages}>
+                  <ChatMessages
+                    messages={messages}
+                    isLoading={isLoading}
+                    character={character}
+                    isSpeaking={isSpeaking}
+                    onStopSpeech={stop}
+                    hideInlineMedia={showMedia}
+                  />
+                </div>
+
+                {/*
+                  2回目以降の質問候補は、回答が読みづらくならないよう
+                  会話の下（スクロールすると出てくる位置）に置きます。
+                  回答から20秒ほどたつと、自動で下まで送ります。
+                */}
+                {followUp && (
+                  <div className={styles.followUp}>
+                    <QuickQuestions
+                      onSelect={(q) => handleSend(q)}
+                      disabled={isLoading}
+                      wide={expanded && !showMedia}
+                      sections={suggestions}
+                      hidden={isLoading}
+                    />
+                  </div>
+                )}
               </div>
 
               {/*
@@ -518,13 +564,15 @@ export default function ChatWidget({
                 すっと閉じる動きをつけるためです。
                 常に出しておきたい場合は hidden の指定を外してください。
               */}
-              <QuickQuestions
-                onSelect={(q) => handleSend(q)}
-                disabled={isLoading}
-                wide={expanded && !showMedia}
-                sections={suggestions}
-                hidden={isLoading}
-              />
+              {!followUp && (
+                <QuickQuestions
+                  onSelect={(q) => handleSend(q)}
+                  disabled={isLoading}
+                  wide={expanded && !showMedia}
+                  sections={suggestions}
+                  hidden={isLoading}
+                />
+              )}
 
               <ChatInput
                 value={input}

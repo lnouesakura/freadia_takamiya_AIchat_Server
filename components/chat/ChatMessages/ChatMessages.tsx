@@ -168,7 +168,11 @@ export default function ChatMessages({
     }
     if (!el) return;
 
-    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    // 会話の末尾が見える位置まで送ります。
+    // 会話欄の下に質問候補を置くことがあるため、scrollHeight（候補の下端）ではなく
+    // 会話の末尾を基準にして、候補がいきなり目に入らないようにしています。
+    const delta = end.getBoundingClientRect().bottom - el.getBoundingClientRect().bottom;
+    el.scrollTo({ top: Math.max(0, el.scrollTop + delta), behavior: 'smooth' });
   }, [messages, isLoading]);
 
   const AssistantIcon = character.id === 'aoi' ? FemaleIcon : MaleIcon;
