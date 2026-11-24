@@ -70,6 +70,16 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
+  {
+    href: '/admin/training',
+    label: '学習ログ',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M22 10L12 5 2 10l10 5 10-5z" />
+        <path d="M6 12v5c3 2 9 2 12 0v-5" />
+      </svg>
+    ),
+  },
   // ユーザー管理はメニューから外しています。
   // 画面と機能は /admin/users に残してあるので、URLを直接開けば使えます。
 ];

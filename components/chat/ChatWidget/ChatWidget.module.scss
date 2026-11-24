@@ -168,6 +168,31 @@ $dur-fade: .28s;    // 透明度
   margin-bottom: 16px;
 }
 
+// 学習モード中の目印。お客様向けの画面と取り違えないように出します
+.trainingBar {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba($gold, 0.18);
+  font-size: 11px;
+  line-height: 1.5;
+  color: $gold-dark;
+
+  strong { font-weight: 700; white-space: nowrap; }
+}
+
+.trainingToast {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(#16a34a, 0.1);
+  font-size: 11px;
+  color: #15803d;
+}
+
 // 会話欄。候補がスクロールの先に隠れるよう、最低でも表示領域いっぱいの高さを取る
 .scrollMessages {
   min-height: 100%;

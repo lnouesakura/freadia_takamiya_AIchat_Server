@@ -27,6 +27,7 @@ import { classifyResponse } from '@/lib/analyzeQuestion';
 import { getPropertyTitle } from '@/lib/getPropertyTitle';
 import { splitMedia } from '@/lib/chatMedia';
 import { CONSENT_KEY } from '@/lib/consent';
+import { TRAINING_ID_PREFIX, TRAINING_PARAM, isTrainingKeyValid } from '@/lib/trainingMode';
 import styles from './ChatWidget.module.scss';
 
 // 2回目以降の質問候補を、自動で見える位置まで送るまでの時間
@@ -109,6 +110,14 @@ export default function ChatWidget({
   // 同意の画面を出すかどうか。
   // 画面がちらつかないよう、確かめるまでは null（まだ分からない）にしておきます。
   const [consented, setConsented] = useState<boolean | null>(null);
+
+  // ── 学習モード ──
+  // URLに ?training=… が付いて開かれたときだけ入ります（lib/trainingMode.ts）。
+  // 販売員がお客様役で質問し、AIの回答を直して覚えさせるモードです。
+  const [trainingKey, setTrainingKey] = useState('');
+  const [trainingMatrices, setTrainingMatrices] = useState<{ code: string; title: string }[]>([]);
+  const [trainingToast, setTrainingToast] = useState('');
+  const isTraining = trainingKey !== '';
 
   const browserIdRef = useRef<string>('');
   const startTimeRef = useRef<number>(Date.now());
@@ -203,6 +212,23 @@ export default function ChatWidget({
     syncNarrow();
     mq.addEventListener('change', syncNarrow);
 
+    // 学習モードかどうか。URLの ?training= を見ます。
+    // 貼り付け側（aichat.php）が、同じ値を iframe のURLに引き継ぎます。
+    let tKey = '';
+    try {
+      const v = new URLSearchParams(window.location.search).get(TRAINING_PARAM);
+      if (isTrainingKeyValid(v)) tKey = v as string;
+    } catch {
+      /* URLが読めなければ通常モード */
+    }
+    if (tKey) {
+      setTrainingKey(tKey);
+      fetch('/api/training', { headers: { 'x-training-key': tKey } })
+        .then((r) => r.json())
+        .then((d) => setTrainingMatrices(Array.isArray(d?.matrices) ? d.matrices : []))
+        .catch(() => { /* 項目の選択が出ないだけです */ });
+    }
+
     // 会話ログを束ねる識別ID。
     // newSession のときは新しく発行し直し、前回の続きを引き継ぎません。
     //
@@ -211,7 +237,7 @@ export default function ChatWidget({
     //    読み書きの両方を try で囲っています。
     //    使えない場合は毎回新しい会話として始まります（履歴は引き継ぎません）。
     let id: string | null = null;
-    if (!newSession) {
+    if (!newSession && !tKey) {
       try {
         id = localStorage.getItem(BROWSER_ID_KEY);
       } catch {
@@ -219,17 +245,23 @@ export default function ChatWidget({
       }
     }
     if (!id) {
-      id = `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
-      try {
-        localStorage.setItem(BROWSER_ID_KEY, id);
-      } catch {
-        /* localStorage が使えない環境では何もしない */
+      if (tKey) {
+        // 学習モードは別の識別IDで会話します。お客様としての履歴には混ざらず、
+        // 管理画面のログでも train- の印で見分けられます。
+        id = `${TRAINING_ID_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+      } else {
+        id = `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+        try {
+          localStorage.setItem(BROWSER_ID_KEY, id);
+        } catch {
+          /* localStorage が使えない環境では何もしない */
+        }
       }
     }
     browserIdRef.current = id;
     startTimeRef.current = Date.now();
 
-    Promise.all([getPropertyTitle(), newSession ? [] : loadHistory(id)]).then(([title, history]) => {
+    Promise.all([getPropertyTitle(), newSession || tKey ? [] : loadHistory(id)]).then(([title, history]) => {
       setPropertyTitle(title);
       setMessages([buildGreeting(title), ...history]);
     });
@@ -529,6 +561,13 @@ export default function ChatWidget({
             }`}
           >
             <div className={styles.inner}>
+              {isTraining && (
+                <div className={styles.trainingBar}>
+                  <strong>学習モード</strong>
+                  <span>お客様役で質問し、回答の下のボタンで教えてください</span>
+                </div>
+              )}
+              {trainingToast && <div className={styles.trainingToast}>{trainingToast}</div>}
               <div className={styles.scroll} ref={scrollRef}>
                 <div className={styles.scrollMessages}>
                   <ChatMessages
@@ -538,6 +577,23 @@ export default function ChatWidget({
                     isSpeaking={isSpeaking}
                     onStopSpeech={stop}
                     hideInlineMedia={showMedia}
+                    training={
+                      isTraining
+                        ? {
+                            matrices: trainingMatrices,
+                            browserId: browserIdRef.current,
+                            trainingKey,
+                            onSaved: (verdict) => {
+                              setTrainingToast(
+                                verdict === 'ok'
+                                  ? 'この受け答えを参考資料として記録しました'
+                                  : '記録しました。次の回答から、この内容を踏まえて答えます',
+                              );
+                              window.setTimeout(() => setTrainingToast(''), 3000);
+                            },
+                          }
+                        : undefined
+                    }
                   />
                 </div>
 

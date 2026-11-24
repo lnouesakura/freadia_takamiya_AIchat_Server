@@ -3,12 +3,21 @@ import React from 'react';
 import { useEffect, useRef } from 'react';
 import { Character } from '@/lib/characters';
 import { splitMedia } from '@/lib/chatMedia';
+import TrainingPanel, { MatrixOption } from '@/components/chat/TrainingPanel/TrainingPanel';
 import styles from './ChatMessages.module.scss';
 
 export interface Message {
   role: 'user' | 'assistant';
   content: string;
   status?: string; // 分類ステータス（consult/info/guide/unrelated/answered）
+}
+
+/** 学習モードのとき、回答ごとに評価パネルを出すための設定 */
+export interface TrainingConfig {
+  matrices: MatrixOption[];
+  browserId: string;
+  trainingKey: string;
+  onSaved?: (verdict: 'ok' | 'ng') => void;
 }
 
 interface Props {
@@ -22,6 +31,8 @@ interface Props {
    * 同じ画像が吹き出しの中にも出てしまうのを防ぎます。
    */
   hideInlineMedia?: boolean;
+  /** 渡したときだけ学習モードの評価パネルが出ます */
+  training?: TrainingConfig;
 }
 
 function FemaleIcon() {
@@ -146,6 +157,7 @@ export default function ChatMessages({
   isSpeaking,
   onStopSpeech,
   hideInlineMedia = false,
+  training,
 }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -190,6 +202,19 @@ export default function ChatMessages({
 
         // 本文と画像を分ける。画像がなければ本文はそのままです
         const { text: body, images } = splitMedia(msg.content);
+
+        // 学習モードの評価パネルを出す条件。
+        // 直前にこちらが投げた質問があり、回答が出来上がっている回答だけが対象です。
+        // 冒頭のあいさつ（前に質問が無い）には出しません。
+        const prevUserText =
+          msg.role === 'assistant' && i > 0 && messages[i - 1].role === 'user'
+            ? messages[i - 1].content
+            : '';
+        const showTraining =
+          !!training &&
+          !!prevUserText &&
+          !!msg.content.trim() &&
+          !(isLoading && i === messages.length - 1);
 
         return (
           <div
@@ -271,6 +296,17 @@ export default function ChatMessages({
                   <span>停止</span>
                 </button>
               </div>
+            )}
+
+            {showTraining && training && (
+              <TrainingPanel
+                question={prevUserText}
+                answer={body}
+                matrices={training.matrices}
+                browserId={training.browserId}
+                trainingKey={training.trainingKey}
+                onSaved={training.onSaved}
+              />
             )}
           </div>
         );

@@ -361,3 +361,43 @@ model QuestionSet {
 
   @@map("question_sets")
 }
+
+// ───────────────────────────────────────────────
+// 学習モード
+// 販売員がお客様役で質問し、AIの回答を直した内容を記録する。
+// 反映中のものは、同じ話題の質問が来たときの参考資料としてAIに渡る。
+// ───────────────────────────────────────────────
+
+/// 学習モードでの1件の指導。
+model TrainingLog {
+  id String @id @default(cuid())
+
+  /// 学習したときの識別ID（train- で始まります）
+  browserId String @default("")
+
+  /// 担当者がお客様役として投げた質問
+  question String
+  /// そのときAIが返した回答
+  answer String
+
+  /// 判定。'ok' … この回答で合っている / 'ng' … 直してほしい
+  verdict String @default("ng")
+  /// 「こう答えてほしい」。verdict が ok のときは空で構いません
+  correction String @default("")
+  /// 補足メモ（なぜ違うのか、背景など）。AIには渡しません
+  note String @default("")
+
+  /// 関係する情報マトリクスのコード（任意）
+  matrixCode String @default("")
+
+  /// 'active' … 回答に反映中 / 'paused' … 反映を止めている
+  status String @default("active")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String   @default("")
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("training_logs")
+}

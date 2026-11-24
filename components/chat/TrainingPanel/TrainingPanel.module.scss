@@ -1,0 +1,188 @@
+// components/chat/TrainingPanel/TrainingPanel.module.scss
+@use '../../../styles/variables' as *;
+
+// 学習モードの評価パネル。
+// お客様向けの吹き出しと混ざらないよう、内側に寄せた淡い枠で区切っています。
+.panel {
+  margin: 8px 0 0;
+  padding: 10px 14px;
+  border: 1px dashed rgba($gold, 0.55);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+  font-family: "Noto Sans JP", sans-serif;
+  font-weight: 300;
+}
+
+.panelSaved {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-style: solid;
+  border-color: rgba(#16a34a, 0.35);
+  background: rgba(#16a34a, 0.06);
+}
+
+.savedMark {
+  font-size: 13px;
+  color: #15803d;
+}
+
+.savedText {
+  font-size: 11px;
+  color: #15803d;
+  letter-spacing: 0.03em;
+}
+
+// ── 判定ボタンの行 ──────────────────────────────
+.askRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.askLabel {
+  font-size: 11px;
+  color: $stone;
+  letter-spacing: 0.04em;
+}
+
+.judge {
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-family: "Noto Sans JP", sans-serif;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  background: $white;
+  transition: all 0.3s ease;
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.judgeOk {
+  border: 1px solid rgba(#16a34a, 0.5);
+  color: #15803d;
+
+  &:hover:not(:disabled) {
+    background: #15803d;
+    border-color: #15803d;
+    color: $white;
+  }
+}
+
+.judgeNg {
+  border: 1px solid rgba($gold-dark, 0.5);
+  color: $gold-dark;
+
+  &:hover:not(:disabled) {
+    background: $gold-dark;
+    border-color: $gold-dark;
+    color: $white;
+  }
+}
+
+// ── 書き直しフォーム ────────────────────────────
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.subRow {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  > * {
+    flex: 1 1 200px;
+  }
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fieldLabel {
+  font-size: 10px;
+  color: $stone;
+  letter-spacing: 0.06em;
+}
+
+.area,
+.input,
+.select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid $stone-light;
+  border-radius: 8px;
+  background: $white;
+  font-size: 12px;
+  font-family: "Noto Sans JP", sans-serif;
+  font-weight: 300;
+  color: $charcoal;
+  line-height: 1.6;
+  resize: vertical;
+
+  &:focus {
+    outline: none;
+    border-color: $gold;
+  }
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.primary {
+  padding: 7px 18px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: $gold-dark;
+  color: $white;
+  font-size: 11px;
+  font-family: "Noto Sans JP", sans-serif;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover:not(:disabled) {
+    background: transparent;
+    border-color: $gold-dark;
+    color: $gold-dark;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.ghost {
+  padding: 7px 16px;
+  border: 1px solid rgba($stone, 0.45);
+  border-radius: 999px;
+  background: transparent;
+  color: $stone;
+  font-size: 11px;
+  font-family: "Noto Sans JP", sans-serif;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: $charcoal;
+    color: $charcoal;
+  }
+}
+
+.error {
+  margin: 0;
+  font-size: 11px;
+  color: $red-error;
+}

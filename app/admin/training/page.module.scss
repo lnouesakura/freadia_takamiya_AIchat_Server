@@ -1,0 +1,442 @@
+// app/admin/training/page.module.scss
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+.shell {
+  padding: 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.stateMsg {
+  padding: 40px;
+  text-align: center;
+  font-family: $font-serif-jp;
+  font-size: 13px;
+  color: $stone;
+}
+
+// ── 集計 ────────────────────────────────────────
+.statRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 16px 0 4px;
+}
+
+.stat {
+  @include card;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.statWarn {
+  border-color: rgba($red-error, 0.35);
+  background: $red-bg;
+}
+
+.statLabel { font-size: 11px; color: $stone; font-family: $font-serif-jp; }
+.statValue { font-size: 20px; font-weight: 600; color: $charcoal; letter-spacing: 0.02em; }
+.statUnit { font-size: 10px; color: $stone; }
+
+.notice {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px solid rgba($gold, 0.35);
+  border-radius: $radius-md;
+  background: rgba($gold, 0.07);
+  font-family: $font-serif-jp;
+  font-size: 12px;
+  line-height: 1.8;
+  color: $gold-dark;
+}
+
+.errorBox {
+  margin: 16px 0 0;
+  padding: 16px;
+  border: 1px solid rgba($red-error, 0.35);
+  border-radius: $radius-md;
+  background: $red-bg;
+
+  p {
+    margin: 0 0 6px;
+    font-family: $font-serif-jp;
+    font-size: 13px;
+    color: $red-error;
+  }
+}
+
+.errorHint {
+  font-size: 12px !important;
+  color: $stone !important;
+
+  code {
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.06);
+    font-family: $font-mono;
+  }
+}
+
+// ── 絞り込み ────────────────────────────────────
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 20px 0 10px;
+}
+
+.chip {
+  padding: 5px 12px;
+  border: 1px solid $stone-light;
+  border-radius: $radius-full;
+  background: $white;
+  font-size: 11px;
+  font-family: $font-serif-jp;
+  color: $charcoal-light;
+  cursor: pointer;
+}
+
+.chipActive {
+  background: $charcoal;
+  border-color: $charcoal;
+  color: $white;
+}
+
+.search {
+  flex: 1 1 200px;
+  max-width: 280px;
+  padding: 6px 10px;
+  border: 1px solid $stone-light;
+  border-radius: $radius-md;
+  font-size: 12px;
+  font-family: $font-serif-jp;
+
+  &:focus { outline: none; border-color: $gold; }
+}
+
+.count { font-size: 11px; color: $stone; }
+
+.toast {
+  margin: 0 0 10px;
+  padding: 8px 14px;
+  border-radius: $radius-md;
+  background: rgba(#16a34a, 0.1);
+  border: 1px solid rgba(#16a34a, 0.3);
+  color: #15803d;
+  font-size: 12px;
+  font-family: $font-serif-jp;
+}
+
+// ── 一覧 ────────────────────────────────────────
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.row {
+  @include card;
+  overflow: hidden;
+}
+
+.rowHead {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover { background: rgba($gold, 0.04); }
+}
+
+.verdict {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.verdictOk { background: rgba(#16a34a, 0.12); color: #15803d; }
+.verdictNg { background: rgba($gold, 0.16); color: $gold-dark; }
+
+.rowMain {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.rowTitle {
+  font-size: 13px;
+  color: $charcoal;
+  font-family: $font-serif-jp;
+}
+
+.rowSub {
+  font-size: 11px;
+  color: $stone;
+  font-family: $font-serif-jp;
+  line-height: 1.6;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowMeta {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: $radius-full;
+  white-space: nowrap;
+}
+
+.badgeActive { background: rgba(#16a34a, 0.12); color: #15803d; }
+.badgePaused { background: rgba($stone, 0.14); color: $stone; }
+
+.codeTag,
+.promotedTag {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: $font-mono;
+  white-space: nowrap;
+}
+
+.codeTag { background: rgba($navy, 0.07); color: $charcoal-light; }
+.promotedTag { background: rgba($gold, 0.16); color: $gold-dark; }
+
+.date {
+  font-size: 10px;
+  color: $stone;
+  white-space: nowrap;
+}
+
+// ── 開いたときの中身 ───────────────────────────
+.rowBody {
+  padding: 4px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid $cream-dark;
+}
+
+.answerBox {
+  padding: 10px 12px;
+  border-radius: $radius-md;
+  background: $cream;
+  border: 1px solid $cream-dark;
+}
+
+.boxLabel {
+  display: block;
+  font-size: 10px;
+  color: $stone;
+  font-family: $font-serif-jp;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+
+.answerText {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.8;
+  color: $charcoal-light;
+  font-family: $font-serif-jp;
+  white-space: pre-wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fieldLabel {
+  font-size: 11px;
+  color: $stone;
+  font-family: $font-serif-jp;
+}
+
+.area,
+.input,
+.select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid $stone-light;
+  border-radius: $radius-md;
+  font-size: 12px;
+  font-family: $font-serif-jp;
+  color: $charcoal;
+  line-height: 1.7;
+  resize: vertical;
+  background: $white;
+
+  &:focus { outline: none; border-color: $gold; }
+}
+
+.subRow {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+
+  > * { flex: 1 1 220px; }
+}
+
+.hint {
+  margin: 0;
+  font-size: 11px;
+  color: $stone;
+  font-family: $font-serif-jp;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.primary {
+  padding: 7px 18px;
+  border: 1px solid transparent;
+  border-radius: $radius-md;
+  background: $charcoal;
+  color: $white;
+  font-size: 12px;
+  font-family: $font-serif-jp;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover:not(:disabled) { background: transparent; border-color: $charcoal; color: $charcoal; }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+
+.ghost {
+  padding: 7px 16px;
+  border: 1px solid $stone-light;
+  border-radius: $radius-md;
+  background: $white;
+  color: $charcoal-light;
+  font-size: 12px;
+  font-family: $font-serif-jp;
+  cursor: pointer;
+
+  &:hover:not(:disabled) { border-color: $charcoal; color: $charcoal; }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+
+.danger {
+  margin-left: auto;
+  padding: 7px 16px;
+  border: 1px solid rgba($red-error, 0.4);
+  border-radius: $radius-md;
+  background: $white;
+  color: $red-error;
+  font-size: 12px;
+  font-family: $font-serif-jp;
+  cursor: pointer;
+
+  &:hover:not(:disabled) { background: $red-error; border-color: $red-error; color: $white; }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+
+// ── 書き出し／読み込み（ページ右上に小さく） ──────────
+.transfer {
+  position: relative;
+}
+
+.transferBtns {
+  display: flex;
+  gap: 6px;
+}
+
+.smallBtn {
+  padding: 5px 12px;
+  border: 1px solid rgba($stone, 0.4);
+  border-radius: $radius-md;
+  background: $white;
+  font-size: 11px;
+  font-family: $font-serif-jp;
+  color: $charcoal-light;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover:not(:disabled) { border-color: $gold; color: $charcoal; }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+
+// 読み込むファイルを選んだとき・結果が出たときだけ、ボタンの下に出す
+.transferPop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 10;
+  width: 300px;
+  padding: 12px 14px;
+  border: 1px solid $stone-light;
+  border-radius: $radius-md;
+  background: $white;
+  box-shadow: $shadow-lg;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.popActions { display: flex; gap: 8px; }
+
+.hiddenFile { display: none; }
+
+.pickedFile {
+  margin: 0;
+  font-size: 11px;
+  color: $charcoal-light;
+  font-family: $font-serif-jp;
+  word-break: break-all;
+}
+
+.modeSelect {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid $stone-light;
+  border-radius: $radius-md;
+  background: $white;
+  font-size: 11px;
+  font-family: $font-serif-jp;
+  color: $charcoal;
+}
+
+.transferMsg {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #15803d;
+  font-family: $font-serif-jp;
+}
+
+.transferErr {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: $red-error;
+  font-family: $font-serif-jp;
+}

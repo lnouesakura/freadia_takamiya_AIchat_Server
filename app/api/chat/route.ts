@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { categorizeQuestion, extractKeywords, classifyResponse } from '@/lib/analyzeQuestion';
 import { maskPii } from '@/lib/maskPii';
 import { getChatPrompt } from '@/lib/buildChatPrompt';
+import { loadActiveTraining, buildTrainingBlock } from '@/lib/training';
 
 // 使用するモデル。切り替えたい場合はここを変更してください。
 const MODEL = 'claude-sonnet-4-6';
@@ -82,9 +83,15 @@ export async function POST(req: NextRequest) {
 
     // 共通の指示と、このお客様だけの履歴。
     // 互いに関係がないので同時に取りに行きます。
-    const [sharedPrompt, personal] = await Promise.all([
+    //
+    // 学習モードで記録した内容も、ここで読みます。質問ごとに使う資料が変わるため、
+    // 共通の指示（キャッシュ対象）には混ぜず、別のブロックにします。
+    // 保存してすぐ次の質問から反映されるよう、30秒キャッシュにも通しません。
+    const userText = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
+    const [sharedPrompt, personal, trainingBlock] = await Promise.all([
       getChatPrompt(characterId),
       pastContext(browserId),
+      loadActiveTraining().then((entries) => buildTrainingBlock(entries, userText)),
     ]);
 
     // システムプロンプトを2つに分けて渡します。
@@ -104,6 +111,7 @@ export async function POST(req: NextRequest) {
       { type: 'text', text: sharedPrompt, cache_control: { type: 'ephemeral' } },
     ];
     if (personal) system.push({ type: 'text', text: personal });
+    if (trainingBlock) system.push({ type: 'text', text: trainingBlock });
 
     const anthropicRes = await fetch(ANTHROPIC_URL, {
       method: 'POST',
