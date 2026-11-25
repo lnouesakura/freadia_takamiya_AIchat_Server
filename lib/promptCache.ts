@@ -57,4 +57,11 @@ export async function memoPrompt(key: string, build: () => Promise<string>): Pro
 /** 覚えている内容を捨てます。管理画面で書き換えたあとに呼びます */
 export function invalidatePromptCache(): void {
   store.clear();
+  invalidators.forEach((fn) => fn());
+}
+
+/** 別の場所で覚えているもの（資料の索引など）も、ここで一緒に捨てるための登録 */
+const invalidators: (() => void)[] = [];
+export function onInvalidatePromptCache(fn: () => void): void {
+  invalidators.push(fn);
 }

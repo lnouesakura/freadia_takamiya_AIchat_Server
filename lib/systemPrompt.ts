@@ -718,16 +718,27 @@ OK：
 ${salesAppeal ? `\n【この物件で特に推すポイント】\n${salesAppeal}\n` : ''}
 ${salesTone ? `\n【返答のスタイル・トーン】\n${salesTone}\n` : ''}
 ${salesTechnique ? `\n【営業のヒアリング・提案方針】\n${salesTechnique}\n` : ''}
-${extraChatKnowledge ? `\n【追加の接客情報】\n${extraChatKnowledge}\n` : ''}
+${extraChatKnowledge ? wrapExtraChat(extraChatKnowledge) : ''}
 【物件情報（登録済み）】
 この物件について登録された正式な情報です。
 
 ${mansionData}
-${referenceDocs ? `\n【参考資料（取り込んだもの）】
+${referenceDocs ? wrapReferenceDocs(referenceDocs) : ''}`;
+}
+
+
+/** 「追加の接客情報」の見出しと本文（チャットが質問ごとに選んだ資料にも同じ形で使います） */
+export function wrapExtraChat(body: string): string {
+  return `\n【追加の接客情報】\n${body}\n`;
+}
+
+/** 「参考資料」の見出し・注意書き・本文 */
+export function wrapReferenceDocs(body: string): string {
+  return `\n【参考資料（取り込んだもの）】
 資料から読み取ったものです。補助として読んでください。
 題名のうしろの（優先度 高／普通／低）は、担当者が決めた資料の優先度です。
 資料どうしで内容が食い違ったときは、優先度の高いほうを採ってください。
 ここにしか書かれていない数値・仕様・固有名詞は断定せず、確認のうえご案内する旨を伝えてください。
 
-${referenceDocs}\n` : ''}`;
+${body}\n`;
 }

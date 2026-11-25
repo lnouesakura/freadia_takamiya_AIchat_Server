@@ -26,6 +26,8 @@ interface Entry {
   note: string;
   matrixCode: string;
   status: Status;
+  reflectedAt: string;
+  reflectedTo: string;
   createdBy: string;
   createdAt: string;
 }
@@ -35,6 +37,7 @@ interface Matrix {
 }
 interface Summary {
   total: number;
+  reflected: number;
   ok: number;
   ng: number;
   active: number;
@@ -130,13 +133,14 @@ export default function TrainingPage() {
       <PageHeader
         action={<TransferCard reload={load} />}
         title="学習ログ"
-        subtitle="チャット画面の学習モードで記録した参考資料です。反映中のものは、同じ話題・似た質問が来たときに、AIが根拠として踏まえて答えます"
+        subtitle="チャット画面の学習モードで記録した参考資料です。数字や仕様は物件情報へ、口調はキャラクター設計の返答スタイルへ反映済みです。反映していないものは、同じ話題・似た質問が来たときに、AIが参考資料として踏まえて答えます"
       />
 
       <div className={styles.statRow}>
         <Stat label="記録" value={`${s.total}`} unit="件" />
         <Stat label="反映中" value={`${s.active}`} unit="件" tone={s.active === 0 ? 'warn' : undefined} />
         <Stat label="停止中" value={`${s.paused}`} unit="件" />
+        <Stat label="物件情報などへ反映済み" value={`${s.reflected}`} unit="件" />
       </div>
 
       {s.total === 0 && (
@@ -371,6 +375,7 @@ function Row({
         </span>
         <span className={styles.rowMeta}>
           {entry.matrixCode && <span className={styles.codeTag}>{entry.matrixCode}</span>}
+          {entry.reflectedAt && <span className={styles.promotedTag}>反映済み</span>}
           <span className={`${styles.badge} ${entry.status === 'active' ? styles.badgeActive : styles.badgePaused}`}>
             {entry.status === 'active' ? '反映中' : '停止'}
           </span>
@@ -417,6 +422,12 @@ function Row({
             </label>
           </div>
 
+          {entry.reflectedAt && (
+            <p className={styles.hint}>
+              {entry.reflectedTo} に反映済みです。内容は物件情報・キャラクター設計の側にあるため、
+              この記録は参考資料としては渡しません。直すときは、そちらの画面で直してください。
+            </p>
+          )}
           {entry.createdBy && <p className={styles.hint}>記録した人：{entry.createdBy}</p>}
 
           <div className={styles.actions}>

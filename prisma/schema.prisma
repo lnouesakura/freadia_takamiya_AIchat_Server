@@ -393,6 +393,13 @@ model TrainingLog {
   /// 'active' … 回答に反映中 / 'paused' … 反映を止めている
   status String @default("active")
 
+  /// 物件情報・キャラクター設計へ反映した日時。空なら反映していない。
+  /// 反映済みのものは、内容がすでに物件情報などに入っているので、
+  /// 参考資料としては重ねて渡しません（古い数字が残って食い違うのを防ぐため）。
+  reflectedAt DateTime?
+  /// 反映先の概要（例：「物件情報【交通アクセス】／返答スタイル」）
+  reflectedTo String @default("")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   createdBy String   @default("")

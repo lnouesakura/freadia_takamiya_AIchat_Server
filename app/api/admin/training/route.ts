@@ -32,6 +32,8 @@ type ExportedEntry = {
   note: string;
   matrixCode: string;
   status: string;
+  reflectedAt: string;
+  reflectedTo: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -62,6 +64,8 @@ export async function GET(req: NextRequest) {
         note: r.note,
         matrixCode: r.matrixCode,
         status: r.status,
+        reflectedAt: r.reflectedAt ? r.reflectedAt.toISOString() : '',
+        reflectedTo: r.reflectedTo,
         createdBy: r.createdBy,
         createdAt: r.createdAt.toISOString(),
         updatedAt: r.updatedAt.toISOString(),
@@ -159,6 +163,8 @@ export async function POST(req: NextRequest) {
             note: str(e.note),
             matrixCode: str(e.matrixCode),
             status: e.status === 'paused' ? 'paused' : 'active',
+            reflectedAt: str(e.reflectedAt),
+            reflectedTo: str(e.reflectedTo),
             createdBy: str(e.createdBy),
             createdAt: str(e.createdAt),
             updatedAt: str(e.updatedAt),
@@ -183,6 +189,7 @@ export async function POST(req: NextRequest) {
             browserId: e.browserId, question: e.question, answer: e.answer,
             verdict: e.verdict, correction: e.correction, note: e.note,
             matrixCode: e.matrixCode, status: e.status, createdBy: e.createdBy,
+            reflectedAt: validDate(e.reflectedAt), reflectedTo: e.reflectedTo,
           };
           const current = mode === 'replace' ? undefined : existing.get(e.id);
           if (current) {

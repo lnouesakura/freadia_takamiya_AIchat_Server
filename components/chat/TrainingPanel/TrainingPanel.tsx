@@ -33,7 +33,21 @@ interface Props {
   onSaved?: (verdict: 'ok' | 'ng') => void;
 }
 
-type Mode = 'idle' | 'editing' | 'saved-ok' | 'saved-ng';
+type Mode = 'idle' | 'editing' | 'confirm' | 'saved-ok' | 'saved-ng';
+
+/** 反映先の案（/api/training/reflect の答え） */
+interface PropertyChange {
+  section: string;
+  isNew: boolean;
+  value: string;
+  before: string;
+  after: string;
+  replaced: string[];
+}
+interface Preview {
+  property: PropertyChange[];
+  style: string[];
+}
 
 export default function TrainingPanel({
   question,
@@ -52,6 +66,12 @@ export default function TrainingPanel({
   const [matrixCode, setMatrixCode] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // 反映先の確認
+  const [checking, setChecking] = useState(false);
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [pickedProperty, setPickedProperty] = useState<boolean[]>([]);
+  const [pickedStyle, setPickedStyle] = useState<boolean[]>([]);
+  const [savedNote, setSavedNote] = useState('');
 
   // 指示どおりに直した案を作らせる。保存はしない
   const revise = async () => {
@@ -79,7 +99,34 @@ export default function TrainingPanel({
     }
   };
 
-  const save = async (verdict: 'ok' | 'ng') => {
+  // 直した内容を、物件情報・返答スタイルのどこへ反映するかを確かめる（書き込まない）
+  const checkTargets = async () => {
+    setChecking(true);
+    setError('');
+    try {
+      const r = await fetch('/api/training/reflect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-training-key': trainingKey },
+        body: JSON.stringify({ question, answer, correction }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setError(j.error || '反映先を判定できませんでした');
+        return;
+      }
+      const p: Preview = { property: j.property || [], style: j.style || [] };
+      setPreview(p);
+      setPickedProperty(p.property.map(() => true));
+      setPickedStyle(p.style.map(() => true));
+      setMode('confirm');
+    } catch {
+      setError('反映先を判定できませんでした');
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const save = async (verdict: 'ok' | 'ng', withReflect = false) => {
     setSaving(true);
     setError('');
     try {
@@ -94,6 +141,13 @@ export default function TrainingPanel({
           note,
           matrixCode,
           browserId,
+          // 確認で選ばれた分だけを、物件情報・返答スタイルへ反映する
+          reflect: withReflect && preview
+            ? {
+                property: preview.property.filter((_, i) => pickedProperty[i]),
+                style: preview.style.filter((_, i) => pickedStyle[i]),
+              }
+            : undefined,
         }),
       });
       const j = await r.json().catch(() => ({}));
@@ -101,6 +155,7 @@ export default function TrainingPanel({
         setError(j.error || '保存に失敗しました');
         return;
       }
+      setSavedNote(j.reflected?.summary ? `${j.reflected.summary} に反映しました` : '');
       setMode(verdict === 'ok' ? 'saved-ok' : 'saved-ng');
       onSaved?.(verdict);
     } catch {
@@ -117,8 +172,89 @@ export default function TrainingPanel({
         <span className={styles.savedText}>
           {mode === 'saved-ok'
             ? 'この受け答えを参考資料として記録しました'
-            : '参考資料として覚えました。似た質問・関連する質問でも活用します'}
+            : savedNote || '記録しました（物件情報などへの反映はありません）'}
         </span>
+      </div>
+    );
+  }
+
+  if (mode === 'confirm' && preview) {
+    const nothing = preview.property.length === 0 && preview.style.length === 0;
+    const anyPicked = pickedProperty.some(Boolean) || pickedStyle.some(Boolean);
+    return (
+      <div className={styles.panel}>
+        <div className={styles.form}>
+          {nothing ? (
+            <p className={styles.fieldLabel}>
+              物件情報や返答スタイルへ反映できる内容は見つかりませんでした。この回答の直しとして記録だけ行います。
+            </p>
+          ) : (
+            <p className={styles.fieldLabel}>
+              次の内容を反映します。チェックを外したものは反映しません。
+            </p>
+          )}
+
+          {preview.property.map((c, i) => (
+            <label key={`p${i}`} className={styles.target}>
+              <input
+                type="checkbox"
+                checked={!!pickedProperty[i]}
+                onChange={(e) =>
+                  setPickedProperty((prev) => prev.map((v, k) => (k === i ? e.target.checked : v)))
+                }
+              />
+              <span className={styles.targetBody}>
+                <span className={styles.targetTitle}>
+                  物件情報 › {c.section}{c.isNew ? '（新しい見出し）' : ''}
+                </span>
+                {c.replaced.length > 0 ? (
+                  c.replaced.map((r, k) => (
+                    <span key={k} className={styles.targetLine}>{r}</span>
+                  ))
+                ) : (
+                  <span className={styles.targetLine}>追記：{c.value}</span>
+                )}
+              </span>
+            </label>
+          ))}
+
+          {preview.style.map((t, i) => (
+            <label key={`s${i}`} className={styles.target}>
+              <input
+                type="checkbox"
+                checked={!!pickedStyle[i]}
+                onChange={(e) =>
+                  setPickedStyle((prev) => prev.map((v, k) => (k === i ? e.target.checked : v)))
+                }
+              />
+              <span className={styles.targetBody}>
+                <span className={styles.targetTitle}>キャラクター設計 › 返答スタイルに追記</span>
+                <span className={styles.targetLine}>・{t}</span>
+              </span>
+            </label>
+          ))}
+
+          {error && <p className={styles.error}>{error}</p>}
+
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className={styles.primary}
+              disabled={saving}
+              onClick={() => save('ng', anyPicked)}
+            >
+              {saving ? '記録中...' : anyPicked ? '反映して学習させる' : '記録だけ行う'}
+            </button>
+            <button
+              type="button"
+              className={styles.ghost}
+              disabled={saving}
+              onClick={() => { setMode('editing'); setError(''); }}
+            >
+              戻る
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -232,10 +368,10 @@ export default function TrainingPanel({
             <button
               type="button"
               className={styles.primary}
-              disabled={saving || revising || !correction.trim()}
-              onClick={() => save('ng')}
+              disabled={saving || revising || checking || !correction.trim()}
+              onClick={checkTargets}
             >
-              {saving ? '記録中...' : 'この内容で学習させる'}
+              {checking ? '反映先を確認中...' : 'この内容で学習させる'}
             </button>
             <button
               type="button"

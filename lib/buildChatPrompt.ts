@@ -24,13 +24,22 @@
 // 編集されていない項目は1文字も変わりません。
 import { prisma } from '@/lib/prisma';
 import { CHARACTERS, CharacterId } from '@/lib/characters';
-import { buildSystemPrompt } from '@/lib/systemPrompt';
+import { buildSystemPrompt, wrapExtraChat, wrapReferenceDocs } from '@/lib/systemPrompt';
+import { buildDocIndex, selectChunks, renderChunks, type DocIndex, type DocInput } from '@/lib/docSelect';
 import { buildKnowledgeGuard } from '@/lib/knowledgeGuard';
 import { applyOverrides } from '@/lib/promptOverrides';
 import { buildImageGuide } from '@/lib/propertyImages';
-import { memoPrompt } from '@/lib/promptCache';
+import { memoPrompt, onInvalidatePromptCache } from '@/lib/promptCache';
 
-export async function buildChatPrompt(characterId?: string): Promise<string> {
+export async function buildChatPrompt(
+  characterId?: string,
+  opts: { withDocs?: boolean } = {},
+): Promise<string> {
+  // withDocs=false のときは、取り込んだ資料（参考資料・追加の接客情報）を入れません。
+  // チャットは資料を質問ごとに選んで別に渡すため（getDocsBlock）、
+  // ここに全件を入れると毎回数十万字を読み込むことになります。
+  // 管理画面の表示は既定の true のまま（全件を含む形）です。
+  const withDocs = opts.withDocs !== false;
   let propertyTitle = 'AIコンシェルジュ';
   let mansionData = '';
   let salesAppeal = '';
@@ -102,10 +111,10 @@ export async function buildChatPrompt(characterId?: string): Promise<string> {
     const head = (d: { title: string; priority?: number }) =>
       `【${d.title}】（優先度 ${PRIORITY_WORD[d.priority ?? 1] ?? '普通'}）`;
 
-    if (propertyDocs.length) {
+    if (withDocs && propertyDocs.length) {
       referenceDocs = propertyDocs.map((d) => `${head(d)}\n${d.content}`).join('\n\n');
     }
-    if (otherDocs.length) {
+    if (withDocs && otherDocs.length) {
       extraChatKnowledge = otherDocs.map((d) => `${head(d)}\n${d.content}`).join('\n\n');
     }
   }
@@ -142,8 +151,80 @@ export async function buildChatPrompt(characterId?: string): Promise<string> {
  * チャットが使う側の入口。
  *
  * 組み立て結果を短い間だけ覚えておき、2回目以降はデータベースへ行きません。
+ * 資料は含みません（質問ごとに getDocsBlock で選んで渡します）。
  * 管理画面の表示は buildChatPrompt を直接呼んでください（毎回組み立て直します）。
  */
 export function getChatPrompt(characterId?: string): Promise<string> {
-  return memoPrompt(`chat:${characterId || '-'}`, () => buildChatPrompt(characterId));
+  return memoPrompt(`chat-core:${characterId || '-'}`, () =>
+    buildChatPrompt(characterId, { withDocs: false }),
+  );
+}
+
+// ── 質問ごとに選ぶ資料 ─────────────────────────────
+
+type DocGroups = {
+  property: { index: DocIndex };
+  chat: { index: DocIndex };
+};
+
+const GROUP_TTL_MS = Number(process.env.PROMPT_CACHE_MS || 30_000);
+let groupsCache: { at: number; value: DocGroups } | null = null;
+let groupsInFlight: Promise<DocGroups> | null = null;
+// 管理画面で資料を書き換えたときは、索引も作り直す
+onInvalidatePromptCache(() => { groupsCache = null; });
+
+/** 資料を読み、検索用の索引を作る。短い間は使い回します（資料が変わらない間は同じもの） */
+async function loadDocGroups(): Promise<DocGroups> {
+  if (groupsCache && Date.now() - groupsCache.at < GROUP_TTL_MS) return groupsCache.value;
+  if (groupsInFlight) return groupsInFlight;
+
+  groupsInFlight = (async () => {
+    const [docs, categories] = await Promise.all([
+      prisma.knowledgeDoc.findMany({ orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }] }).catch(() => []),
+      prisma.knowledgeCategory.findMany().catch(() => []),
+    ]);
+    const targetOf = (id: string) =>
+      categories.find((c) => c.id === id)?.target ?? (id === 'property' ? 'property' : 'chat');
+    const toInput = (d: (typeof docs)[number]): DocInput => ({
+      id: d.id, title: d.title, content: d.content, priority: d.priority ?? 1, updatedAt: d.updatedAt,
+    });
+    const value: DocGroups = {
+      property: { index: buildDocIndex(docs.filter((d) => targetOf(d.category) === 'property').map(toInput)) },
+      chat: { index: buildDocIndex(docs.filter((d) => targetOf(d.category) !== 'property').map(toInput)) },
+    };
+    groupsCache = { at: Date.now(), value };
+    return value;
+  })().finally(() => { groupsInFlight = null; });
+
+  return groupsInFlight;
+}
+
+const PRIORITY_WORD: Record<number, string> = { 2: '高', 1: '普通', 0: '低' };
+const priorityWord = (p: number) => PRIORITY_WORD[p] ?? '普通';
+
+/**
+ * いまの質問に関係する資料だけを選び、プロンプトに足す文章にします。
+ * userTexts は新しい順（先頭が今回の質問）。関係する資料が無ければ空文字です。
+ *
+ * 法令上の制約や大前提は、共通の指示（getChatPrompt）に入っており、
+ * 資料の内容より常に優先する旨を、ここにも書き添えています。
+ */
+export async function getDocsBlock(userTexts: string[]): Promise<string> {
+  try {
+    const g = await loadDocGroups();
+    const chat = selectChunks(g.chat.index, userTexts);
+    const prop = selectChunks(g.property.index, userTexts);
+    const parts: string[] = [];
+    if (chat.length) parts.push(wrapExtraChat(renderChunks(chat, priorityWord)).trim());
+    if (prop.length) parts.push(wrapReferenceDocs(renderChunks(prop, priorityWord)).trim());
+    if (!parts.length) return '';
+    return (
+      parts.join('\n\n') +
+      '\n\n※ 上の資料は、いまのご質問に関係する部分だけを抜き出したものです。' +
+      '「絶対に間違えてはいけない事実」や法令上の制約は、資料の内容より常に優先してください。'
+    );
+  } catch (e) {
+    console.error('[docs] 資料の選択に失敗しました:', e instanceof Error ? e.message : e);
+    return '';
+  }
 }

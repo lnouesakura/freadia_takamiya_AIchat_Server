@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { categorizeQuestion, extractKeywords, classifyResponse } from '@/lib/analyzeQuestion';
 import { maskPii } from '@/lib/maskPii';
-import { getChatPrompt } from '@/lib/buildChatPrompt';
+import { getChatPrompt, getDocsBlock } from '@/lib/buildChatPrompt';
 import { loadActiveTraining, buildTrainingBlock } from '@/lib/training';
 
 // 使用するモデル。切り替えたい場合はここを変更してください。
@@ -88,8 +88,15 @@ export async function POST(req: NextRequest) {
     // 共通の指示（キャッシュ対象）には混ぜず、別のブロックにします。
     // 保存してすぐ次の質問から反映されるよう、30秒キャッシュにも通しません。
     const userText = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
-    const [sharedPrompt, personal, trainingBlock] = await Promise.all([
+    // 取り込んだ資料は全件を渡さず、いまの質問に関係する部分だけを選びます。
+    // 全件（約49万字）を毎回読み込むと、返答が始まるまでに10秒以上かかっていました。
+    const recentUserTexts = messages
+      .filter((m) => m.role === 'user')
+      .map((m) => m.content)
+      .reverse();
+    const [sharedPrompt, docsBlock, personal, trainingBlock] = await Promise.all([
       getChatPrompt(characterId),
+      getDocsBlock(recentUserTexts),
       pastContext(browserId),
       loadActiveTraining().then((entries) => buildTrainingBlock(entries, userText)),
     ]);
@@ -107,9 +114,13 @@ export async function POST(req: NextRequest) {
     //
     // 2つ目のお客様ごとの履歴は、人によって違うので使い回せません。
     // 混ぜると1つ目まで使い回せなくなるため、後ろに分けてあります。
-    const system: { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }[] = [
-      { type: 'text', text: sharedPrompt, cache_control: { type: 'ephemeral' } },
+    const system: { type: 'text'; text: string; cache_control?: { type: 'ephemeral'; ttl?: '5m' | '1h' } }[] = [
+      // ttl 1h … 読み込み結果を覚えておく時間を1時間にします（既定は5分）。
+      // 5分以上あくと、次の1通目が読み込み直しで遅くなるためです。
+      { type: 'text', text: sharedPrompt, cache_control: { type: 'ephemeral', ttl: '1h' } },
     ];
+    // 質問に関係する資料。質問ごとに変わるので、覚えさせる対象には入れません
+    if (docsBlock) system.push({ type: 'text', text: docsBlock });
     if (personal) system.push({ type: 'text', text: personal });
     if (trainingBlock) system.push({ type: 'text', text: trainingBlock });
 

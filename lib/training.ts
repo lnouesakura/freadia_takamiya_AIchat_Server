@@ -33,6 +33,9 @@ export interface TrainingEntry {
   note: string;
   matrixCode: string;
   status: TrainingStatus;
+  /** 物件情報などへ反映した日時（未反映なら空） */
+  reflectedAt: string;
+  reflectedTo: string;
   createdBy: string;
   createdAt: string;
 }
@@ -48,6 +51,8 @@ interface TrainingRow {
   note: string;
   matrixCode: string;
   status: string;
+  reflectedAt: Date | null;
+  reflectedTo: string;
   createdBy: string;
   createdAt: Date;
 }
@@ -65,6 +70,8 @@ const toEntry = (r: TrainingRow): TrainingEntry => ({
   note: r.note,
   matrixCode: r.matrixCode,
   status: asTrainingStatus(r.status),
+  reflectedAt: r.reflectedAt ? r.reflectedAt.toISOString() : '',
+  reflectedTo: r.reflectedTo,
   createdBy: r.createdBy,
   createdAt: r.createdAt.toISOString(),
 });
@@ -76,7 +83,9 @@ const toEntry = (r: TrainingRow): TrainingEntry => ({
 export async function loadActiveTraining(): Promise<TrainingEntry[]> {
   try {
     const rows = await prisma.trainingLog.findMany({
-      where: { status: 'active' },
+      // 物件情報などへ反映済みのものは除きます。内容はもう物件情報の側にあり、
+      // 重ねて渡すと、あとで物件情報を直したときに古い内容と食い違うためです。
+      where: { status: 'active', reflectedAt: null },
       orderBy: { createdAt: 'desc' },
       take: 300,
     });
@@ -223,6 +232,7 @@ function trim(s: string, max = 400): string {
 
 export interface TrainingSummary {
   total: number;
+  reflected: number;
   ok: number;
   ng: number;
   active: number;
@@ -232,6 +242,7 @@ export interface TrainingSummary {
 export function summarizeTraining(entries: TrainingEntry[]): TrainingSummary {
   return {
     total: entries.length,
+    reflected: entries.filter((e) => !!e.reflectedAt).length,
     ok: entries.filter((e) => e.verdict === 'ok').length,
     ng: entries.filter((e) => e.verdict === 'ng').length,
     active: entries.filter((e) => e.status === 'active').length,

@@ -11,6 +11,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isTrainingKeyValid } from '@/lib/trainingMode';
+import { applyReflection, type ReflectionApply } from '@/lib/trainingReflect';
+
+export const maxDuration = 60;
 
 const allowed = (req: NextRequest) => isTrainingKeyValid(req.headers.get('x-training-key'));
 
@@ -57,11 +60,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'こう答えてほしい内容を入れてください' }, { status: 400 });
   }
 
+  // 画面で確認された、物件情報・返答スタイルへの反映内容（任意）
+  const reflect: ReflectionApply | null =
+    verdict === 'ng' && body.reflect && typeof body.reflect === 'object'
+      ? {
+          property: Array.isArray(body.reflect.property)
+            ? body.reflect.property
+                .filter((p: unknown) => p && typeof p === 'object')
+                .map((p: Record<string, unknown>) => ({
+                  section: typeof p.section === 'string' ? p.section : '',
+                  value: typeof p.value === 'string' ? p.value : '',
+                  before: typeof p.before === 'string' ? p.before : '',
+                  after: typeof p.after === 'string' ? p.after : '',
+                }))
+            : [],
+          style: Array.isArray(body.reflect.style)
+            ? body.reflect.style.filter((s: unknown): s is string => typeof s === 'string')
+            : [],
+        }
+      : null;
+
   try {
+    // 先に物件情報へ反映します。失敗したときに、反映していないのに
+    // 「反映済み」と記録が残らないようにするためです。
+    let reflected: { summary: string; sections: string[]; style: number; remerged: string[] } | null = null;
+    if (reflect && (reflect.property.length || reflect.style.length)) {
+      reflected = await applyReflection(reflect, 'training');
+    }
+
     const created = await prisma.trainingLog.create({
-      data: { browserId, question, answer, verdict, correction, note, matrixCode, status: 'active' },
+      data: {
+        browserId, question, answer, verdict, correction, note, matrixCode, status: 'active',
+        ...(reflected && reflected.summary
+          ? { reflectedAt: new Date(), reflectedTo: reflected.summary }
+          : {}),
+      },
     });
-    return NextResponse.json({ ok: true, id: created.id });
+    return NextResponse.json({ ok: true, id: created.id, reflected });
   } catch (e) {
     const message = e instanceof Error ? e.message : '保存に失敗しました';
     console.error('[training]', e);
